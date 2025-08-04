@@ -1,37 +1,49 @@
 #!/bin/bash
 
-# Strict mode for error detection, but not for help
-if [[ "$*" == *"--help"* ]] || [[ "$*" == *"-h"* ]]; then
-  set -e  # Less strict mode for help
-else
-  set -euo pipefail  # Strict mode for error detection
-fi
+# epub2pdf.sh - Convert EPUB files to PDF
+# This script uses Calibre's ebook-convert tool to convert EPUB files to PDF
 
-VERSION="1.0"
+set -euo pipefail
 
-# Required dependencies
-REQUIRED_CMDS=("ebook-convert" "convert" "zip")
+# Version
+VERSION="1.0.0"
 
-for cmd in "${REQUIRED_CMDS[@]}"; do
-  if ! command -v "$cmd" &>/dev/null; then
-    echo "❌ Missing dependency: $cmd"
-    echo "💡 Install dependencies with: ./install-epub2pdf.sh"
-    exit 1
-  fi
-done
+# Debug mode (set to true for verbose logging)
+DEBUG=true
+
+# Debug logging function
+debug_log() {
+    if [ "$DEBUG" = true ]; then
+        echo -e "${BLUE}🔍 DEBUG: $1${NC}" >&2
+    fi
+}
 
 # Default options
-INPUT_DIR="."
+INPUT_DIR=""
 OUTPUT_DIR="./pdfs"
 RECURSIVE=false
 FORCE=false
 GRAYSCALE=false
+RESIZE=""
 ZIP_OUTPUT=false
 CLEAN_TMP=true
-OPEN_DIR=false
-DRY_RUN=false
+OPEN_OUTPUT_DIR=false
 VERBOSE=false
-RESIZE=""
+DRY_RUN=false
+
+# Required commands
+REQUIRED_CMDS=("ebook-convert")
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+debug_log "Script epub2pdf.sh démarré (v${VERSION})"
+debug_log "Répertoire de travail: $(pwd)"
+debug_log "Arguments reçus: $*"
 
 # Check first if help is requested
 for arg in "$@"; do
@@ -53,6 +65,10 @@ Options:
   --open-output-dir      Open output directory at the end
   --dry-run              Show files to convert without processing
   --verbose              Verbose mode
+  --pdf-title TITLE      Set PDF title metadata
+  --pdf-author AUTHOR    Set PDF author metadata
+  --pdf-subject SUBJECT  Set PDF subject metadata
+  --pdf-keywords KEYWORDS Set PDF keywords metadata
   --help                 Show this help
 
 Examples:
@@ -65,50 +81,82 @@ EOF
 done
 
 # Simple argument parsing
+debug_log "Début du parsing des arguments..."
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --input-dir)
       INPUT_DIR="$2"
+      debug_log "Répertoire d'entrée défini: $INPUT_DIR"
       shift 2
       ;;
     --output-dir)
       OUTPUT_DIR="$2"
+      debug_log "Répertoire de sortie défini: $OUTPUT_DIR"
       shift 2
       ;;
     --recursive)
       RECURSIVE=true
+      debug_log "Mode récursif activé"
       shift
       ;;
     --force)
       FORCE=true
+      debug_log "Mode force activé"
       shift
       ;;
     --grayscale)
       GRAYSCALE=true
+      debug_log "Mode grayscale activé"
       shift
       ;;
     --resize)
       RESIZE="$2"
+      debug_log "Redimensionnement défini: $RESIZE"
       shift 2
       ;;
     --zip-output)
       ZIP_OUTPUT=true
+      debug_log "Mode ZIP activé"
       shift
       ;;
     --clean-tmp)
       CLEAN_TMP=true
+      debug_log "Nettoyage temporaire activé"
       shift
       ;;
     --open-output-dir)
-      OPEN_DIR=true
+      OPEN_OUTPUT_DIR=true
+      debug_log "Ouverture du répertoire de sortie activée"
       shift
+      ;;
+    --pdf-title)
+      PDF_TITLE="$2"
+      debug_log "Titre PDF défini: $PDF_TITLE"
+      shift 2
+      ;;
+    --pdf-author)
+      PDF_AUTHOR="$2"
+      debug_log "Auteur PDF défini: $PDF_AUTHOR"
+      shift 2
+      ;;
+    --pdf-subject)
+      PDF_SUBJECT="$2"
+      debug_log "Sujet PDF défini: $PDF_SUBJECT"
+      shift 2
+      ;;
+    --pdf-keywords)
+      PDF_KEYWORDS="$2"
+      debug_log "Mots-clés PDF définis: $PDF_KEYWORDS"
+      shift 2
       ;;
     --dry-run)
       DRY_RUN=true
+      debug_log "Mode dry-run activé"
       shift
       ;;
     --verbose)
       VERBOSE=true
+      debug_log "Mode verbose activé"
       shift
       ;;
     *)
@@ -118,6 +166,34 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+debug_log "Parsing des arguments terminé"
+debug_log "Options finales:"
+debug_log "  INPUT_DIR=$INPUT_DIR"
+debug_log "  OUTPUT_DIR=$OUTPUT_DIR"
+debug_log "  RECURSIVE=$RECURSIVE"
+debug_log "  FORCE=$FORCE"
+debug_log "  GRAYSCALE=$GRAYSCALE"
+debug_log "  RESIZE=$RESIZE"
+debug_log "  ZIP_OUTPUT=$ZIP_OUTPUT"
+debug_log "  CLEAN_TMP=$CLEAN_TMP"
+debug_log "  OPEN_OUTPUT_DIR=$OPEN_OUTPUT_DIR"
+debug_log "  VERBOSE=$VERBOSE"
+debug_log "  DRY_RUN=$DRY_RUN"
+
+# Check dependencies
+debug_log "Vérification des dépendances..."
+for cmd in "${REQUIRED_CMDS[@]}"; do
+  debug_log "Vérification de la commande: $cmd"
+  if ! command -v "$cmd" &>/dev/null; then
+    echo "❌ Missing dependency: $cmd"
+    echo "💡 Install dependencies with: ./install-epub2pdf.sh"
+    exit 1
+  else
+    debug_log "✅ Commande $cmd trouvée: $(which $cmd)"
+  fi
+done
+debug_log "✅ Toutes les dépendances sont satisfaites"
 
 # Path validation
 if [ ! -d "$INPUT_DIR" ]; then
@@ -189,6 +265,47 @@ get_resize_dimensions() {
       fi
       ;;
   esac
+}
+
+# Apply PDF metadata
+apply_pdf_metadata() {
+  local pdf_file="$1"
+  
+  # Check if exiftool is available
+  if ! command -v exiftool &>/dev/null; then
+    echo "⚠️ exiftool not found, skipping metadata"
+    return
+  fi
+  
+  # Build exiftool command
+  local exif_cmd="exiftool -overwrite_original"
+  
+  if [[ -n "$PDF_TITLE" ]]; then
+    exif_cmd="$exif_cmd -Title='$PDF_TITLE'"
+  fi
+  
+  if [[ -n "$PDF_AUTHOR" ]]; then
+    exif_cmd="$exif_cmd -Author='$PDF_AUTHOR'"
+  fi
+  
+  if [[ -n "$PDF_SUBJECT" ]]; then
+    exif_cmd="$exif_cmd -Subject='$PDF_SUBJECT'"
+  fi
+  
+  if [[ -n "$PDF_KEYWORDS" ]]; then
+    exif_cmd="$exif_cmd -Keywords='$PDF_KEYWORDS'"
+  fi
+  
+  # Apply metadata if any is set
+  if [[ "$exif_cmd" != "exiftool -overwrite_original" ]]; then
+    if [[ "$VERBOSE" == true ]]; then
+      echo "Applying metadata to: $pdf_file"
+    fi
+    
+    if ! eval "$exif_cmd" "$pdf_file" >/dev/null 2>&1; then
+      echo "⚠️ Failed to apply metadata to: $pdf_file"
+    fi
+  fi
 }
 
 # Processing
@@ -308,6 +425,11 @@ for epub in "${EPUBS[@]}"; do
     continue
   fi
 
+  # Apply metadata if specified
+  if [[ -n "$PDF_TITLE" || -n "$PDF_AUTHOR" || -n "$PDF_SUBJECT" || -n "$PDF_KEYWORDS" ]]; then
+    apply_pdf_metadata "$out"
+  fi
+
   [ "$CLEAN_TMP" = true ] && rm -rf "$TMP_OE_DIR" "$TMP_IMG_DIR"
   progress_bar "$count" "$TOTAL"
 done
@@ -329,4 +451,8 @@ if $ZIP_OUTPUT; then
   fi
 fi
 
-$OPEN_DIR && open "$OUTPUT_DIR"
+$OPEN_OUTPUT_DIR && open "$OUTPUT_DIR"
+
+success "Conversion completed!"
+
+exit 0
