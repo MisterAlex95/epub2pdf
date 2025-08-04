@@ -12,6 +12,7 @@ Bash script to convert EPUB files to PDF, optimized for manga and comics.
 - **ZIP Archiving**: Automatically creates a ZIP archive of generated PDFs
 - **Progress Bar**: Shows conversion progress
 - **Dry-run Mode**: Preview files to convert without processing them
+- **Graphical Interface**: User-friendly GUI for easy conversion
 
 ## 📋 Prerequisites
 
@@ -36,11 +37,43 @@ cd epub2pdf
 ```bash
 # Install dependencies
 brew install --cask calibre
-brew install imagemagick ghostscript
+brew install imagemagick ghostscript python-tk
 
 # Make script executable
 chmod +x epub2pdf.sh
 ```
+
+## 🖥️ Graphical Interface
+
+epub2pdf includes a user-friendly graphical interface that makes conversion even easier:
+
+### Features
+- **Intuitive Interface**: Simple and clean design
+- **Directory Browsing**: Easy selection of input and output directories
+- **Option Controls**: Checkboxes and dropdowns for all options
+- **Real-time Log**: See conversion progress in real-time
+- **Dry Run**: Test your settings before converting
+- **Progress Bar**: Visual feedback during conversion
+
+### Launching the GUI
+```bash
+# After installation
+epub2pdf-gui
+
+# Or directly
+./epub2pdf_gui.sh
+```
+
+### GUI Options
+- **Input/Output Directories**: Browse and select folders
+- **Search Subdirectories**: Recursive search option
+- **Overwrite Files**: Force overwrite existing PDFs
+- **Grayscale**: Convert to black and white
+- **Resize Images**: Choose from A4, A3, A5, HD, FHD, or custom size
+- **Create ZIP**: Automatically archive results
+- **Clean Temporary Files**: Remove temp files after conversion
+- **Open Output Directory**: Open folder when done
+- **Verbose Mode**: Show detailed progress
 
 ## 📖 Usage
 
@@ -72,6 +105,11 @@ epub2pdf [OPTIONS]
 **Simple conversion**:
 ```bash
 epub2pdf
+```
+
+**Graphical interface**:
+```bash
+epub2pdf-gui
 ```
 
 **Conversion with options**:
@@ -110,6 +148,8 @@ epub2pdf --input-dir ./epub --output-dir ./pdf --force --clean-tmp
 epub2pdf/
 ├── epub2pdf.sh          # Main script
 ├── install-epub2pdf.sh  # Installation script
+├── epub2pdf_gui.py      # Graphical user interface
+├── epub2pdf_gui.sh      # GUI launcher script
 └── README.md           # This file
 ```
 
@@ -157,4 +197,4 @@ This project is under free license. Use it as you wish!
 
 **Version**: 1.0  
 **Author**: epub2pdf  
-**Last updated**: $(date +%Y-%m-%d) 
+**Last updated**: $(date +%Y-%m-%d)
