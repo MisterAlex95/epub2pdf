@@ -21,7 +21,7 @@ debug_log() {
 
 # Default values
 INPUT_DIR=""
-OUTPUT_DIR=""
+OUTPUT_DIR="./pdfs"
 RECURSIVE=false
 FORCE=false
 GRAYSCALE=false
@@ -321,7 +321,7 @@ CBZS=()
 
 # Check if files were passed as arguments
 if [[ $# -gt 0 ]]; then
-    debug_log "Arguments passés: $*"
+    debug_log "Arguments restants après parsing: $*"
     # Process each argument
     for arg in "$@"; do
         if [[ -f "$arg" ]]; then
