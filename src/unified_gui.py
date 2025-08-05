@@ -73,6 +73,8 @@ class UnifiedGUI:
         # Variables pour le redimensionnement
         self.resize_var = tk.StringVar(value="")
         self.custom_resize_var = tk.StringVar(value="")
+        self.custom_width = tk.StringVar(value="")
+        self.custom_height = tk.StringVar(value="")
         
         # Variables pour les métadonnées
         self.edit_metadata = tk.BooleanVar(value=False)
@@ -138,20 +140,13 @@ class UnifiedGUI:
         
         # Onglet options
         options_tab = ttk.Frame(self.notebook)
-        self.notebook.add(options_tab, text="Options")
-        
-        # Onglet avancé
-        advanced_tab = ttk.Frame(self.notebook)
-        self.notebook.add(advanced_tab, text="Avancé")
+        self.notebook.add(options_tab, text="Avancé")
         
         # Configuration de l'onglet principal
         self._create_main_tab(main_tab)
         
-        # Configuration de l'onglet options
-        self._create_options_tab(options_tab)
-        
         # Configuration de l'onglet avancé
-        self._create_advanced_tab(advanced_tab)
+        self._create_options_tab(options_tab)
         
     def _create_main_tab(self, parent):
         """Crée l'onglet principal avec les fonctionnalités essentielles"""
@@ -177,6 +172,9 @@ class UnifiedGUI:
         # Frame pour la liste des fichiers
         self._create_files_frame(scrollable_frame)
         
+        # Frame pour les options de conversion (simplifiée)
+        self._create_conversion_options_frame(scrollable_frame)
+        
         # Frame pour la conversion
         self._create_conversion_frame(scrollable_frame)
         
@@ -193,75 +191,6 @@ class UnifiedGUI:
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
         
     def _create_options_tab(self, parent):
-        """Crée l'onglet des options de conversion"""
-        # Frame avec scrollbar
-        canvas = tk.Canvas(parent)
-        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        # Options de conversion
-        conversion_options_frame = ttk.LabelFrame(scrollable_frame, text="Options de Conversion", padding="10")
-        conversion_options_frame.pack(fill="x", padx=10, pady=5)
-        
-        # Grille pour les options
-        conversion_options_frame.columnconfigure(1, weight=1)
-        conversion_options_frame.columnconfigure(3, weight=1)
-        
-        # Options de base
-        ttk.Checkbutton(conversion_options_frame, text="Mode récursif", 
-                       variable=self.recursive).grid(row=0, column=0, sticky="w", padx=(0, 20))
-        ttk.Checkbutton(conversion_options_frame, text="Forcer l'écrasement", 
-                       variable=self.force).grid(row=0, column=1, sticky="w", padx=(0, 20))
-        ttk.Checkbutton(conversion_options_frame, text="Mode grayscale", 
-                       variable=self.grayscale).grid(row=0, column=2, sticky="w", padx=(0, 20))
-        ttk.Checkbutton(conversion_options_frame, text="Nettoyer les fichiers temporaires", 
-                       variable=self.clean_tmp).grid(row=0, column=3, sticky="w")
-        
-        # Options de traitement
-        ttk.Checkbutton(conversion_options_frame, text="Traitement parallèle", 
-                       variable=self.parallel).grid(row=1, column=0, sticky="w", padx=(0, 20))
-        ttk.Checkbutton(conversion_options_frame, text="Éditer les métadonnées", 
-                       variable=self.edit_metadata).grid(row=1, column=1, sticky="w", padx=(0, 20))
-        ttk.Checkbutton(conversion_options_frame, text="Renommage automatique", 
-                       variable=self.auto_rename).grid(row=1, column=2, sticky="w", padx=(0, 20))
-        ttk.Checkbutton(conversion_options_frame, text="Ouvrir le dossier de sortie", 
-                       variable=self.open_output).grid(row=1, column=3, sticky="w")
-        
-        # Options de sortie
-        ttk.Checkbutton(conversion_options_frame, text="Créer une archive ZIP", 
-                       variable=self.zip_output).grid(row=2, column=0, sticky="w", padx=(0, 20))
-        
-        # Redimensionnement
-        ttk.Label(conversion_options_frame, text="Redimensionnement:").grid(row=3, column=0, sticky="w", pady=(20, 5))
-        resize_combo = ttk.Combobox(conversion_options_frame, textvariable=self.resize_var, 
-                                   values=["", "A4", "A3", "A5", "HD", "FHD"], 
-                                   state="readonly", width=10)
-        resize_combo.grid(row=3, column=1, sticky="w", padx=(10, 0), pady=(20, 5))
-        
-        # Nombre de workers
-        ttk.Label(conversion_options_frame, text="Workers parallèles:").grid(row=3, column=2, sticky="w", padx=(20, 5), pady=(20, 5))
-        workers_spin = ttk.Spinbox(conversion_options_frame, from_=1, to=8, 
-                                  textvariable=self.max_workers, width=5)
-        workers_spin.grid(row=3, column=3, sticky="w", pady=(20, 5))
-        
-        # Pack du scroll
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-        # Bind pour le scroll avec la souris
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-        
-    def _create_advanced_tab(self, parent):
         """Crée l'onglet des options avancées"""
         # Frame avec scrollbar
         canvas = tk.Canvas(parent)
@@ -300,16 +229,24 @@ class UnifiedGUI:
         
         custom_resize_frame.columnconfigure(1, weight=1)
         
-        ttk.Label(custom_resize_frame, text="Format (ex: 800x600):").grid(row=0, column=0, sticky="w", padx=(0, 10))
-        ttk.Entry(custom_resize_frame, textvariable=self.custom_resize_var, width=20).grid(row=0, column=1, sticky="w", padx=(0, 10))
+        ttk.Label(custom_resize_frame, text="Largeur:").grid(row=0, column=0, sticky="w", padx=(0, 10))
+        ttk.Entry(custom_resize_frame, textvariable=self.custom_width, width=10).grid(row=0, column=1, sticky="w", padx=(0, 10))
+        
+        ttk.Label(custom_resize_frame, text="Hauteur:").grid(row=0, column=2, sticky="w", padx=(20, 10))
+        ttk.Entry(custom_resize_frame, textvariable=self.custom_height, width=10).grid(row=0, column=3, sticky="w")
         
         # Informations système
         system_frame = ttk.LabelFrame(scrollable_frame, text="Informations Système", padding="10")
         system_frame.pack(fill="x", padx=10, pady=5)
         
-        # Vérification des dépendances
-        deps_text = "Dépendances requises:\n• unzip/unar\n• convert (ImageMagick)\n• pandoc (pour EPUB)\n• exiftool (pour métadonnées)\n• pdftk (pour fusion)"
-        ttk.Label(system_frame, text=deps_text, justify="left").pack(anchor="w")
+        # Vérification des scripts
+        scripts_text = tk.Text(system_frame, height=8, width=60, wrap="word")
+        scripts_text.pack(fill="both", expand=True)
+        
+        # Vérifier les scripts disponibles
+        scripts_info = self._check_available_scripts()
+        scripts_text.insert("1.0", scripts_info)
+        scripts_text.config(state="disabled")
         
         # Pack du scroll
         canvas.pack(side="left", fill="both", expand=True)
@@ -434,6 +371,52 @@ class UnifiedGUI:
         # Liste des fichiers avec sélection multiple
         self.files_listbox = SelectionListbox(files_frame, on_selection_change=self._on_files_selection_change)
         self.files_listbox.pack(fill="both", expand=True, padx=10, pady=5)
+        
+    def _create_conversion_options_frame(self, parent):
+        """Crée le frame pour les options de conversion (simplifiée)"""
+        conversion_options_frame = ttk.LabelFrame(parent, text="Options de Conversion", padding="10")
+        conversion_options_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Grille pour les options
+        conversion_options_frame.columnconfigure(1, weight=1)
+        conversion_options_frame.columnconfigure(3, weight=1)
+        
+        # Options de base
+        ttk.Checkbutton(conversion_options_frame, text="Mode récursif", 
+                       variable=self.recursive).grid(row=0, column=0, sticky="w", padx=(0, 20))
+        ttk.Checkbutton(conversion_options_frame, text="Forcer l'écrasement", 
+                       variable=self.force).grid(row=0, column=1, sticky="w", padx=(0, 20))
+        ttk.Checkbutton(conversion_options_frame, text="Mode grayscale", 
+                       variable=self.grayscale).grid(row=0, column=2, sticky="w", padx=(0, 20))
+        ttk.Checkbutton(conversion_options_frame, text="Nettoyer les fichiers temporaires", 
+                       variable=self.clean_tmp).grid(row=0, column=3, sticky="w")
+        
+        # Options de traitement
+        ttk.Checkbutton(conversion_options_frame, text="Traitement parallèle", 
+                       variable=self.parallel).grid(row=1, column=0, sticky="w", padx=(0, 20))
+        ttk.Checkbutton(conversion_options_frame, text="Éditer les métadonnées", 
+                       variable=self.edit_metadata).grid(row=1, column=1, sticky="w", padx=(0, 20))
+        ttk.Checkbutton(conversion_options_frame, text="Renommage automatique", 
+                       variable=self.auto_rename).grid(row=1, column=2, sticky="w", padx=(0, 20))
+        ttk.Checkbutton(conversion_options_frame, text="Ouvrir le dossier de sortie", 
+                       variable=self.open_output).grid(row=1, column=3, sticky="w")
+        
+        # Options de sortie
+        ttk.Checkbutton(conversion_options_frame, text="Créer une archive ZIP", 
+                       variable=self.zip_output).grid(row=2, column=0, sticky="w", padx=(0, 20))
+        
+        # Redimensionnement
+        ttk.Label(conversion_options_frame, text="Redimensionnement:").grid(row=3, column=0, sticky="w", pady=(20, 5))
+        resize_combo = ttk.Combobox(conversion_options_frame, textvariable=self.resize_var, 
+                                   values=["", "A4", "A3", "A5", "HD", "FHD"], 
+                                   state="readonly", width=10)
+        resize_combo.grid(row=3, column=1, sticky="w", padx=(10, 0), pady=(20, 5))
+        
+        # Nombre de workers
+        ttk.Label(conversion_options_frame, text="Workers parallèles:").grid(row=3, column=2, sticky="w", padx=(20, 5), pady=(20, 5))
+        workers_spin = ttk.Spinbox(conversion_options_frame, from_=1, to=8, 
+                                  textvariable=self.max_workers, width=5)
+        workers_spin.grid(row=3, column=3, sticky="w", pady=(20, 5))
         
     def _create_conversion_frame(self, parent):
         """Crée le frame de conversion"""
@@ -1363,6 +1346,23 @@ Keyboard Shortcuts:
                         stats_text += f" | Formats: {', '.join(format_stats)}"
                         
             self.status_var.set(stats_text)
+
+    def _check_available_scripts(self):
+        """Vérifie la présence des scripts nécessaires et retourne un message d'information."""
+        scripts_info = "Scripts disponibles:\n"
+        scripts_info += "• ./scripts/epub2pdf.sh (EPUB → PDF)\n"
+        scripts_info += "• ./scripts/cbr2pdf.sh (CBR → PDF)\n"
+        scripts_info += "• ./scripts/cbz2pdf.sh (CBZ → PDF)\n"
+        
+        if not os.path.exists("./scripts/epub2pdf.sh"):
+            scripts_info += "• ./scripts/epub2pdf.sh (EPUB → PDF) manquant.\n"
+        if not os.path.exists("./scripts/cbr2pdf.sh"):
+            scripts_info += "• ./scripts/cbr2pdf.sh (CBR → PDF) manquant.\n"
+        if not os.path.exists("./scripts/cbz2pdf.sh"):
+            scripts_info += "• ./scripts/cbz2pdf.sh (CBZ → PDF) manquant.\n"
+            
+        scripts_info += "\nAssurez-vous que ces scripts sont dans le même dossier que l'exécutable."
+        return scripts_info
 
 
 def main():
