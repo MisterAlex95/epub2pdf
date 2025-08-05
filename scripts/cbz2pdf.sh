@@ -7,7 +7,7 @@
 set -euo pipefail
 
 # Version
-VERSION="1.0.0"
+VERSION="2.0.0"
 
 # Debug mode (set to true for verbose logging)
 DEBUG=true
@@ -32,6 +32,10 @@ OPEN_OUTPUT_DIR=false
 VERBOSE=false
 DRY_RUN=false
 SINGLE_FILE=""
+EDIT_METADATA=false
+AUTO_RENAME=false
+PARALLEL=false
+MAX_WORKERS=4
 
 # Required commands
 REQUIRED_CMDS=("unzip" "convert" "zip")
@@ -67,6 +71,10 @@ Options:
     -v, --verbose              Verbose output
     --dry-run                  Show what would be done without doing it
     --single-file FILE         Process a single CBZ file
+    --edit-metadata            Edit PDF metadata after conversion
+    --auto-rename              Auto-rename files based on content
+    --parallel                 Enable parallel processing
+    --max-workers N            Maximum number of parallel workers (default: 4)
     -h, --help                 Show this help message
     --version                  Show version
 
@@ -79,6 +87,7 @@ Examples:
     $0 --input-dir ./comics --output-dir ./pdfs --recursive
     $0 --input-dir ./manga --grayscale --resize A4
     $0 --input-dir ./books --verbose --dry-run
+    $0 --single-file "manga.cbz" --output-dir ./pdfs --edit-metadata
 
 EOF
 }
@@ -192,6 +201,93 @@ show_progress() {
     printf "] %d%% (%d/%d)" "$percentage" "$current" "$total"
 }
 
+# Function to edit PDF metadata
+edit_pdf_metadata() {
+    local pdf_file="$1"
+    local original_name="$2"
+    
+    if [[ "$EDIT_METADATA" == false ]]; then
+        return 0
+    fi
+    
+    debug_log "Édition des métadonnées pour: $pdf_file"
+    
+    # Check if exiftool is available
+    if ! command -v exiftool &> /dev/null; then
+        debug_log "⚠️ exiftool non disponible, métadonnées non modifiées"
+        warning "exiftool not found, metadata not modified"
+        return 0
+    fi
+    
+    # Extract title from filename
+    local title=$(basename "$original_name" .cbz | sed 's/_/ /g' | sed 's/-/ /g')
+    
+    # Set metadata
+    if exiftool -overwrite_original \
+        -Title="$title" \
+        -Author="Converted with cbz2pdf.sh" \
+        -Subject="Comic Book" \
+        -Keywords="manga,comic,CBZ" \
+        -Creator="cbz2pdf.sh v$VERSION" \
+        "$pdf_file" > /dev/null 2>&1; then
+        debug_log "✅ Métadonnées mises à jour pour: $pdf_file"
+        info "Metadata updated for: $pdf_file"
+    else
+        debug_log "❌ Échec de la mise à jour des métadonnées"
+        warning "Failed to update metadata for: $pdf_file"
+    fi
+}
+
+# Function to auto-rename PDF based on content
+auto_rename_pdf() {
+    local pdf_file="$1"
+    local original_name="$2"
+    
+    if [[ "$AUTO_RENAME" == false ]]; then
+        return 0
+    fi
+    
+    debug_log "Renommage automatique pour: $pdf_file"
+    
+    # Extract series and volume information from filename
+    local basename=$(basename "$original_name" .cbz)
+    
+    # Common patterns for manga naming
+    local new_name=""
+    
+    # Pattern: Series_Vol.X_Ch.Y
+    if [[ $basename =~ ^(.+)_Vol\.([0-9]+)_Ch\.([0-9]+) ]]; then
+        local series="${BASH_REMATCH[1]}"
+        local volume="${BASH_REMATCH[2]}"
+        local chapter="${BASH_REMATCH[3]}"
+        new_name="${series} T${volume} Ch${chapter}.pdf"
+    # Pattern: Series_Vol.X
+    elif [[ $basename =~ ^(.+)_Vol\.([0-9]+) ]]; then
+        local series="${BASH_REMATCH[1]}"
+        local volume="${BASH_REMATCH[2]}"
+        new_name="${series} T${volume}.pdf"
+    # Pattern: Series Ch.X
+    elif [[ $basename =~ ^(.+)_Ch\.([0-9]+) ]]; then
+        local series="${BASH_REMATCH[1]}"
+        local chapter="${BASH_REMATCH[2]}"
+        new_name="${series} Ch${chapter}.pdf"
+    else
+        # Default: clean up the name
+        new_name=$(echo "$basename" | sed 's/_/ /g' | sed 's/-/ /g').pdf
+    fi
+    
+    if [[ -n "$new_name" && "$new_name" != "$(basename "$pdf_file")" ]]; then
+        local new_path="$OUTPUT_DIR/$new_name"
+        if mv "$pdf_file" "$new_path" 2>/dev/null; then
+            debug_log "✅ Renommé: $pdf_file -> $new_path"
+            info "Renamed: $pdf_file -> $new_path"
+        else
+            debug_log "❌ Échec du renommage: $pdf_file"
+            warning "Failed to rename: $pdf_file"
+        fi
+    fi
+}
+
 # Parse command line arguments
 debug_log "Début du parsing des arguments..."
 while [[ $# -gt 0 ]]; do
@@ -256,6 +352,26 @@ while [[ $# -gt 0 ]]; do
             debug_log "Fichier unique défini: $SINGLE_FILE"
             shift 2
             ;;
+        --edit-metadata)
+            EDIT_METADATA=true
+            debug_log "Mode édition métadonnées activé"
+            shift
+            ;;
+        --auto-rename)
+            AUTO_RENAME=true
+            debug_log "Mode renommage automatique activé"
+            shift
+            ;;
+        --parallel)
+            PARALLEL=true
+            debug_log "Mode parallèle activé"
+            shift
+            ;;
+        --max-workers)
+            MAX_WORKERS="$2"
+            debug_log "Nombre de workers parallèles défini: $MAX_WORKERS"
+            shift 2
+            ;;
         -h|--help)
             show_help
             exit 0
@@ -287,6 +403,10 @@ debug_log "  OPEN_OUTPUT_DIR=$OPEN_OUTPUT_DIR"
 debug_log "  VERBOSE=$VERBOSE"
 debug_log "  DRY_RUN=$DRY_RUN"
 debug_log "  SINGLE_FILE=$SINGLE_FILE"
+debug_log "  EDIT_METADATA=$EDIT_METADATA"
+debug_log "  AUTO_RENAME=$AUTO_RENAME"
+debug_log "  PARALLEL=$PARALLEL"
+debug_log "  MAX_WORKERS=$MAX_WORKERS"
 
 # Check dependencies
 check_dependencies
@@ -554,6 +674,12 @@ for cbz in "${CBZS[@]}"; do
     fi
     
     success "Created: $OUTPUT_PDF"
+    
+    # Edit metadata if requested
+    edit_pdf_metadata "$OUTPUT_PDF" "$cbz"
+    
+    # Auto-rename if requested
+    auto_rename_pdf "$OUTPUT_PDF" "$cbz"
     
     # Clean up temporary files
     if [[ "$CLEAN_TMP" == true ]]; then

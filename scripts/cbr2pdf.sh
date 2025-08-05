@@ -7,7 +7,7 @@
 set -euo pipefail
 
 # Version
-VERSION="1.0.0"
+VERSION="2.0.0"
 
 # Debug mode (set to true for verbose logging)
 DEBUG=true
@@ -19,7 +19,7 @@ debug_log() {
     fi
 }
 
-# Default options
+# Default values
 INPUT_DIR=""
 OUTPUT_DIR="./pdfs"
 RECURSIVE=false
@@ -27,13 +27,18 @@ FORCE=false
 GRAYSCALE=false
 RESIZE=""
 ZIP_OUTPUT=false
-CLEAN_TMP=true
+CLEAN_TMP=false
 OPEN_OUTPUT_DIR=false
 VERBOSE=false
 DRY_RUN=false
+SINGLE_FILE=""
+EDIT_METADATA=false
+AUTO_RENAME=false
+PARALLEL=false
+MAX_WORKERS=4
 
 # Required commands
-REQUIRED_CMDS=("unar" "convert" "zip")
+REQUIRED_CMDS=("unrar" "convert" "zip")
 
 # Colors for output
 RED='\033[0;31m'
@@ -46,66 +51,72 @@ debug_log "Script cbr2pdf.sh démarré (v${VERSION})"
 debug_log "Répertoire de travail: $(pwd)"
 debug_log "Arguments reçus: $*"
 
-# Check first if help is requested
-for arg in "$@"; do
-  if [ "$arg" = "--help" ] || [ "$arg" = "-h" ]; then
-    cat <<EOF
-📘 cbr2pdf v$VERSION
+# Help function
+show_help() {
+    cat << EOF
+📖 cbr2pdf.sh v${VERSION} - Convert CBR files to PDF
 
-Usage: cbr2pdf [OPTIONS]
+Usage: $0 [OPTIONS] [CBR_FILES...]
 
 Options:
-  --input-dir DIR        Input directory containing CBR files (default: .)
-  --output-dir DIR       Output directory for PDFs (default: ./pdfs)
-  --recursive            Search in subdirectories
-  --force                Overwrite existing PDF files
-  --grayscale            Convert images to black and white
-  --resize SIZE          Resize images (ex: A4, 1240x1754, 800x600)
-  --zip-output           Create a .zip archive at the end
-  --clean-tmp            Remove temporary files
-  --open-output-dir      Open output directory at the end
-  --dry-run              Show files to convert without processing
-  --verbose              Verbose mode
-  --pdf-title TITLE      Set PDF title metadata
-  --pdf-author AUTHOR    Set PDF author metadata
-  --pdf-subject SUBJECT  Set PDF subject metadata
-  --pdf-keywords KEYWORDS Set PDF keywords metadata
-  --help                 Show this help
+    -i, --input-dir DIR        Input directory containing CBR files
+    -o, --output-dir DIR       Output directory for PDF files (default: ./pdfs)
+    -r, --recursive            Search for CBR files in subdirectories
+    -f, --force                Overwrite existing PDF files
+    -g, --grayscale            Convert images to grayscale (saves ink)
+    --resize SIZE              Resize images (ex: A4, 1240x1754, 800x600)
+    --zip-output               Create ZIP archive of all PDFs
+    --clean-tmp                Clean temporary files (default: true)
+    --open-output-dir          Open output directory when done
+    -v, --verbose              Verbose output
+    --dry-run                  Show what would be done without doing it
+    --single-file FILE         Process a single CBR file
+    --edit-metadata            Edit PDF metadata after conversion
+    --auto-rename              Auto-rename files based on content
+    --parallel                 Enable parallel processing
+    --max-workers N            Maximum number of parallel workers (default: 4)
+    -h, --help                 Show this help message
+    --version                  Show version
+
+Resize options:
+    A4, A3, A5                Standard paper sizes
+    HD, FHD                    Standard resolutions
+    widthxheight               Custom size (ex: 800x600)
 
 Examples:
-  cbr2pdf --input-dir ./comics --output-dir ./pdfs --recursive --grayscale --zip-output
-  cbr2pdf --input-dir ./comics --resize A4 --verbose
+    $0 --input-dir ./comics --output-dir ./pdfs --recursive
+    $0 --input-dir ./manga --grayscale --resize A4
+    $0 --input-dir ./books --verbose --dry-run
+    $0 --single-file "manga.cbr" --output-dir ./pdfs --edit-metadata
 
 EOF
-    exit 0
-  fi
-done
+}
 
 # Simple argument parsing
 debug_log "Début du parsing des arguments..."
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --input-dir)
+    -i|--input-dir)
       INPUT_DIR="$2"
       debug_log "Répertoire d'entrée défini: $INPUT_DIR"
       shift 2
       ;;
-    --output-dir)
+    -o|--output-dir)
       OUTPUT_DIR="$2"
       debug_log "Répertoire de sortie défini: $OUTPUT_DIR"
       shift 2
       ;;
-    --recursive)
+    -r|--recursive)
       RECURSIVE=true
       debug_log "Mode récursif activé"
       shift
       ;;
-    --force)
+    -f|--force)
       FORCE=true
       debug_log "Mode force activé"
       shift
       ;;
-    --grayscale)
+    -g|--grayscale)
       GRAYSCALE=true
       debug_log "Mode grayscale activé"
       shift
@@ -130,6 +141,41 @@ while [[ $# -gt 0 ]]; do
       debug_log "Ouverture du répertoire de sortie activée"
       shift
       ;;
+    --single-file)
+      SINGLE_FILE="$2"
+      debug_log "Fichier unique à traiter: $SINGLE_FILE"
+      shift 2
+      ;;
+    --edit-metadata)
+      EDIT_METADATA=true
+      debug_log "Édition des métadonnées PDF activée"
+      shift
+      ;;
+    --auto-rename)
+      AUTO_RENAME=true
+      debug_log "Auto-renommage des fichiers activé"
+      shift
+      ;;
+    --parallel)
+      PARALLEL=true
+      debug_log "Traitement parallèle activé"
+      shift
+      ;;
+    --max-workers)
+      MAX_WORKERS="$2"
+      debug_log "Nombre de workers parallèles défini: $MAX_WORKERS"
+      shift 2
+      ;;
+    -v|--verbose)
+      VERBOSE=true
+      debug_log "Mode verbose activé"
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      debug_log "Mode dry-run activé"
+      shift
+      ;;
     --pdf-title)
       PDF_TITLE="$2"
       debug_log "Titre PDF défini: $PDF_TITLE"
@@ -150,15 +196,13 @@ while [[ $# -gt 0 ]]; do
       debug_log "Mots-clés PDF définis: $PDF_KEYWORDS"
       shift 2
       ;;
-    --dry-run)
-      DRY_RUN=true
-      debug_log "Mode dry-run activé"
-      shift
+    --help)
+      show_help
+      exit 0
       ;;
-    --verbose)
-      VERBOSE=true
-      debug_log "Mode verbose activé"
-      shift
+    --version)
+      echo "cbr2pdf.sh v${VERSION}"
+      exit 0
       ;;
     *)
       echo "❌ Unknown option: $1"
@@ -181,6 +225,11 @@ debug_log "  CLEAN_TMP=$CLEAN_TMP"
 debug_log "  OPEN_OUTPUT_DIR=$OPEN_OUTPUT_DIR"
 debug_log "  VERBOSE=$VERBOSE"
 debug_log "  DRY_RUN=$DRY_RUN"
+debug_log "  SINGLE_FILE=$SINGLE_FILE"
+debug_log "  EDIT_METADATA=$EDIT_METADATA"
+debug_log "  AUTO_RENAME=$AUTO_RENAME"
+debug_log "  PARALLEL=$PARALLEL"
+debug_log "  MAX_WORKERS=$MAX_WORKERS"
 
 # Check dependencies
 debug_log "Vérification des dépendances..."
@@ -309,6 +358,93 @@ apply_pdf_metadata() {
   fi
 }
 
+# Function to edit PDF metadata
+edit_pdf_metadata() {
+    local pdf_file="$1"
+    local original_name="$2"
+    
+    if [[ "$EDIT_METADATA" == false ]]; then
+        return 0
+    fi
+    
+    debug_log "Édition des métadonnées pour: $pdf_file"
+    
+    # Check if exiftool is available
+    if ! command -v exiftool &> /dev/null; then
+        debug_log "⚠️ exiftool non disponible, métadonnées non modifiées"
+        warning "exiftool not found, metadata not modified"
+        return 0
+    fi
+    
+    # Extract title from filename
+    local title=$(basename "$original_name" .cbr | sed 's/_/ /g' | sed 's/-/ /g')
+    
+    # Set metadata
+    if exiftool -overwrite_original \
+        -Title="$title" \
+        -Author="Converted with cbr2pdf.sh" \
+        -Subject="Comic Book" \
+        -Keywords="manga,comic,CBR" \
+        -Creator="cbr2pdf.sh v$VERSION" \
+        "$pdf_file" > /dev/null 2>&1; then
+        debug_log "✅ Métadonnées mises à jour pour: $pdf_file"
+        info "Metadata updated for: $pdf_file"
+    else
+        debug_log "❌ Échec de la mise à jour des métadonnées"
+        warning "Failed to update metadata for: $pdf_file"
+    fi
+}
+
+# Function to auto-rename PDF based on content
+auto_rename_pdf() {
+    local pdf_file="$1"
+    local original_name="$2"
+    
+    if [[ "$AUTO_RENAME" == false ]]; then
+        return 0
+    fi
+    
+    debug_log "Renommage automatique pour: $pdf_file"
+    
+    # Extract series and volume information from filename
+    local basename=$(basename "$original_name" .cbr)
+    
+    # Common patterns for manga naming
+    local new_name=""
+    
+    # Pattern: Series_Vol.X_Ch.Y
+    if [[ $basename =~ ^(.+)_Vol\.([0-9]+)_Ch\.([0-9]+) ]]; then
+        local series="${BASH_REMATCH[1]}"
+        local volume="${BASH_REMATCH[2]}"
+        local chapter="${BASH_REMATCH[3]}"
+        new_name="${series} T${volume} Ch${chapter}.pdf"
+    # Pattern: Series_Vol.X
+    elif [[ $basename =~ ^(.+)_Vol\.([0-9]+) ]]; then
+        local series="${BASH_REMATCH[1]}"
+        local volume="${BASH_REMATCH[2]}"
+        new_name="${series} T${volume}.pdf"
+    # Pattern: Series Ch.X
+    elif [[ $basename =~ ^(.+)_Ch\.([0-9]+) ]]; then
+        local series="${BASH_REMATCH[1]}"
+        local chapter="${BASH_REMATCH[2]}"
+        new_name="${series} Ch${chapter}.pdf"
+    else
+        # Default: clean up the name
+        new_name=$(echo "$basename" | sed 's/_/ /g' | sed 's/-/ /g').pdf
+    fi
+    
+    if [[ -n "$new_name" && "$new_name" != "$(basename "$pdf_file")" ]]; then
+        local new_path="$OUTPUT_DIR/$new_name"
+        if mv "$pdf_file" "$new_path" 2>/dev/null; then
+            debug_log "✅ Renommé: $pdf_file -> $new_path"
+            info "Renamed: $pdf_file -> $new_path"
+        else
+            debug_log "❌ Échec du renommage: $pdf_file"
+            warning "Failed to rename: $pdf_file"
+        fi
+    fi
+}
+
 # Processing
 count=0
 for cbr in "${CBRS[@]}"; do
@@ -334,7 +470,7 @@ for cbr in "${CBRS[@]}"; do
   mkdir -p "$TMP_EXTRACT_DIR" "$TMP_IMG_DIR"
 
   # Extract CBR file
-  if ! unar -o "$TMP_EXTRACT_DIR" "$cbr" >/dev/null 2>&1; then
+  if ! unrar -o "$TMP_EXTRACT_DIR" "$cbr" >/dev/null 2>&1; then
     echo "❌ Error extracting: $cbr"
     continue
   fi
@@ -430,6 +566,12 @@ for cbr in "${CBRS[@]}"; do
   if [[ -n "$PDF_TITLE" || -n "$PDF_AUTHOR" || -n "$PDF_SUBJECT" || -n "$PDF_KEYWORDS" ]]; then
     apply_pdf_metadata "$out"
   fi
+
+  # Edit metadata if requested
+  edit_pdf_metadata "$out" "$cbr"
+  
+  # Auto-rename if requested
+  auto_rename_pdf "$out" "$cbr"
 
   [ "$CLEAN_TMP" = true ] && rm -rf "$TMP_EXTRACT_DIR" "$TMP_IMG_DIR"
   progress_bar "$count" "$TOTAL"

@@ -31,7 +31,7 @@ class UnifiedGUI:
         
         # Configuration de la fenêtre
         self.root.title(f"epub2pdf, cbr2pdf & cbz2pdf - Unified Converter v{VERSION}")
-        self.root.geometry("1200x800")
+        self.root.geometry("1400x900")
         
         # Initialisation du gestionnaire de paramètres
         self.settings_manager = SettingsManager()
@@ -117,43 +117,213 @@ class UnifiedGUI:
         """Initialise les composants de l'interface"""
         # Configuration de la fenêtre principale
         self.root.title("epub2pdf - Convertisseur Unifié")
-        self.root.geometry("1200x800")
+        self.root.geometry("1400x900")
         
         # Frame principal avec scrollbar
-        main_frame = ttk.Frame(self.root)
-        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Configuration du grid
-        main_frame.columnconfigure(1, weight=1)
-        main_frame.rowconfigure(2, weight=1)
+        main_container = ttk.Frame(self.root)
+        main_container.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Titre
-        title_label = ttk.Label(main_frame, text="epub2pdf - Convertisseur Unifié", 
-                               font=("Arial", 16, "bold"))
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
+        title_label = ttk.Label(main_container, text="epub2pdf - Convertisseur Unifié", 
+                               font=("Arial", 18, "bold"))
+        title_label.pack(pady=(0, 20))
+        
+        # Notebook pour les onglets
+        self.notebook = ttk.Notebook(main_container)
+        self.notebook.pack(fill="both", expand=True)
+        
+        # Onglet principal
+        main_tab = ttk.Frame(self.notebook)
+        self.notebook.add(main_tab, text="Conversion")
+        
+        # Onglet options
+        options_tab = ttk.Frame(self.notebook)
+        self.notebook.add(options_tab, text="Options")
+        
+        # Onglet avancé
+        advanced_tab = ttk.Frame(self.notebook)
+        self.notebook.add(advanced_tab, text="Avancé")
+        
+        # Configuration de l'onglet principal
+        self._create_main_tab(main_tab)
+        
+        # Configuration de l'onglet options
+        self._create_options_tab(options_tab)
+        
+        # Configuration de l'onglet avancé
+        self._create_advanced_tab(advanced_tab)
+        
+    def _create_main_tab(self, parent):
+        """Crée l'onglet principal avec les fonctionnalités essentielles"""
+        # Frame principal avec scrollbar
+        canvas = tk.Canvas(parent)
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
         
         # Frame pour les chemins
-        self._create_path_frame(main_frame)
+        self._create_path_frame(scrollable_frame)
         
         # Frame pour les filtres et recherche
-        self._create_filters_frame(main_frame)
+        self._create_filters_frame(scrollable_frame)
         
         # Frame pour la liste des fichiers
-        self._create_files_frame(main_frame)
-        
-        # Frame pour les options de conversion
-        self._create_options_frame(main_frame)
+        self._create_files_frame(scrollable_frame)
         
         # Frame pour la conversion
-        self._create_conversion_frame(main_frame)
+        self._create_conversion_frame(scrollable_frame)
         
         # Frame pour le statut
-        self._create_status_frame(main_frame)
+        self._create_status_frame(scrollable_frame)
+        
+        # Pack du scroll
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Bind pour le scroll avec la souris
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+    def _create_options_tab(self, parent):
+        """Crée l'onglet des options de conversion"""
+        # Frame avec scrollbar
+        canvas = tk.Canvas(parent)
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Options de conversion
+        conversion_options_frame = ttk.LabelFrame(scrollable_frame, text="Options de Conversion", padding="10")
+        conversion_options_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Grille pour les options
+        conversion_options_frame.columnconfigure(1, weight=1)
+        conversion_options_frame.columnconfigure(3, weight=1)
+        
+        # Options de base
+        ttk.Checkbutton(conversion_options_frame, text="Mode récursif", 
+                       variable=self.recursive).grid(row=0, column=0, sticky="w", padx=(0, 20))
+        ttk.Checkbutton(conversion_options_frame, text="Forcer l'écrasement", 
+                       variable=self.force).grid(row=0, column=1, sticky="w", padx=(0, 20))
+        ttk.Checkbutton(conversion_options_frame, text="Mode grayscale", 
+                       variable=self.grayscale).grid(row=0, column=2, sticky="w", padx=(0, 20))
+        ttk.Checkbutton(conversion_options_frame, text="Nettoyer les fichiers temporaires", 
+                       variable=self.clean_tmp).grid(row=0, column=3, sticky="w")
+        
+        # Options de traitement
+        ttk.Checkbutton(conversion_options_frame, text="Traitement parallèle", 
+                       variable=self.parallel).grid(row=1, column=0, sticky="w", padx=(0, 20))
+        ttk.Checkbutton(conversion_options_frame, text="Éditer les métadonnées", 
+                       variable=self.edit_metadata).grid(row=1, column=1, sticky="w", padx=(0, 20))
+        ttk.Checkbutton(conversion_options_frame, text="Renommage automatique", 
+                       variable=self.auto_rename).grid(row=1, column=2, sticky="w", padx=(0, 20))
+        ttk.Checkbutton(conversion_options_frame, text="Ouvrir le dossier de sortie", 
+                       variable=self.open_output).grid(row=1, column=3, sticky="w")
+        
+        # Options de sortie
+        ttk.Checkbutton(conversion_options_frame, text="Créer une archive ZIP", 
+                       variable=self.zip_output).grid(row=2, column=0, sticky="w", padx=(0, 20))
+        
+        # Redimensionnement
+        ttk.Label(conversion_options_frame, text="Redimensionnement:").grid(row=3, column=0, sticky="w", pady=(20, 5))
+        resize_combo = ttk.Combobox(conversion_options_frame, textvariable=self.resize_var, 
+                                   values=["", "A4", "A3", "A5", "HD", "FHD"], 
+                                   state="readonly", width=10)
+        resize_combo.grid(row=3, column=1, sticky="w", padx=(10, 0), pady=(20, 5))
+        
+        # Nombre de workers
+        ttk.Label(conversion_options_frame, text="Workers parallèles:").grid(row=3, column=2, sticky="w", padx=(20, 5), pady=(20, 5))
+        workers_spin = ttk.Spinbox(conversion_options_frame, from_=1, to=8, 
+                                  textvariable=self.max_workers, width=5)
+        workers_spin.grid(row=3, column=3, sticky="w", pady=(20, 5))
+        
+        # Pack du scroll
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Bind pour le scroll avec la souris
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+    def _create_advanced_tab(self, parent):
+        """Crée l'onglet des options avancées"""
+        # Frame avec scrollbar
+        canvas = tk.Canvas(parent)
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Métadonnées personnalisées
+        metadata_frame = ttk.LabelFrame(scrollable_frame, text="Métadonnées Personnalisées", padding="10")
+        metadata_frame.pack(fill="x", padx=10, pady=5)
+        
+        metadata_frame.columnconfigure(1, weight=1)
+        
+        ttk.Label(metadata_frame, text="Titre:").grid(row=0, column=0, sticky="w", padx=(0, 10))
+        ttk.Entry(metadata_frame, textvariable=self.custom_title, width=40).grid(row=0, column=1, sticky="ew", padx=(0, 10))
+        
+        ttk.Label(metadata_frame, text="Auteur:").grid(row=1, column=0, sticky="w", padx=(0, 10))
+        ttk.Entry(metadata_frame, textvariable=self.custom_author, width=40).grid(row=1, column=1, sticky="ew", padx=(0, 10))
+        
+        ttk.Label(metadata_frame, text="Sujet:").grid(row=2, column=0, sticky="w", padx=(0, 10))
+        ttk.Entry(metadata_frame, textvariable=self.custom_subject, width=40).grid(row=2, column=1, sticky="ew", padx=(0, 10))
+        
+        ttk.Label(metadata_frame, text="Mots-clés:").grid(row=3, column=0, sticky="w", padx=(0, 10))
+        ttk.Entry(metadata_frame, textvariable=self.custom_keywords, width=40).grid(row=3, column=1, sticky="ew", padx=(0, 10))
+        
+        # Redimensionnement personnalisé
+        custom_resize_frame = ttk.LabelFrame(scrollable_frame, text="Redimensionnement Personnalisé", padding="10")
+        custom_resize_frame.pack(fill="x", padx=10, pady=5)
+        
+        custom_resize_frame.columnconfigure(1, weight=1)
+        
+        ttk.Label(custom_resize_frame, text="Format (ex: 800x600):").grid(row=0, column=0, sticky="w", padx=(0, 10))
+        ttk.Entry(custom_resize_frame, textvariable=self.custom_resize_var, width=20).grid(row=0, column=1, sticky="w", padx=(0, 10))
+        
+        # Informations système
+        system_frame = ttk.LabelFrame(scrollable_frame, text="Informations Système", padding="10")
+        system_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Vérification des dépendances
+        deps_text = "Dépendances requises:\n• unzip/unar\n• convert (ImageMagick)\n• pandoc (pour EPUB)\n• exiftool (pour métadonnées)\n• pdftk (pour fusion)"
+        ttk.Label(system_frame, text=deps_text, justify="left").pack(anchor="w")
+        
+        # Pack du scroll
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Bind pour le scroll avec la souris
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
         
     def _create_path_frame(self, parent):
         """Crée le frame pour les chemins"""
         path_frame = ttk.LabelFrame(parent, text="Chemins", padding="5")
-        path_frame.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(0, 10))
+        path_frame.pack(fill="x", padx=10, pady=5)
         
         # Configuration du grid
         path_frame.columnconfigure(1, weight=1)
@@ -175,7 +345,7 @@ class UnifiedGUI:
     def _create_filters_frame(self, parent):
         """Crée le frame pour les filtres et la recherche"""
         filters_frame = ttk.LabelFrame(parent, text="Filtres et Recherche", padding="5")
-        filters_frame.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(0, 10))
+        filters_frame.pack(fill="x", padx=10, pady=5)
         
         # Configuration du grid
         filters_frame.columnconfigure(1, weight=1)
@@ -230,7 +400,7 @@ class UnifiedGUI:
     def _create_files_frame(self, parent):
         """Crée le frame pour la liste des fichiers"""
         files_frame = ttk.LabelFrame(parent, text="Fichiers", padding="5")
-        files_frame.grid(row=3, column=0, columnspan=3, sticky="nsew", pady=(0, 10))
+        files_frame.pack(fill="x", padx=10, pady=5)
         
         # Configuration du grid
         files_frame.columnconfigure(0, weight=1)
@@ -238,7 +408,7 @@ class UnifiedGUI:
         
         # Frame pour les contrôles de sélection
         selection_controls = ttk.Frame(files_frame)
-        selection_controls.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        selection_controls.pack(fill="x", padx=10, pady=5)
         
         # Boutons de sélection
         select_all_btn = ttk.Button(selection_controls, text="Tout sélectionner", 
@@ -263,51 +433,56 @@ class UnifiedGUI:
         
         # Liste des fichiers avec sélection multiple
         self.files_listbox = SelectionListbox(files_frame, on_selection_change=self._on_files_selection_change)
-        self.files_listbox.grid(row=1, column=0, sticky="nsew")
+        self.files_listbox.pack(fill="both", expand=True, padx=10, pady=5)
         
-    def _create_options_frame(self, parent):
-        """Crée le frame pour les options de conversion"""
-        options_frame = ttk.LabelFrame(parent, text="Options de Conversion", padding="5")
-        options_frame.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(0, 10))
+    def _create_conversion_frame(self, parent):
+        """Crée le frame de conversion"""
+        conversion_frame = ttk.LabelFrame(parent, text="Conversion", padding="10")
+        conversion_frame.pack(fill="x", padx=10, pady=5)
         
-        # Configuration du grid
-        options_frame.columnconfigure(1, weight=1)
-        options_frame.columnconfigure(3, weight=1)
+        # Boutons de conversion
+        buttons_frame = ttk.Frame(conversion_frame)
+        buttons_frame.pack(fill="x", padx=10, pady=5)
         
-        # Options de base
-        ttk.Checkbutton(options_frame, text="Récursif", variable=self.recursive).grid(row=0, column=0, sticky="w")
-        ttk.Checkbutton(options_frame, text="Forcer", variable=self.force).grid(row=0, column=1, sticky="w")
-        ttk.Checkbutton(options_frame, text="Niveaux de gris", variable=self.grayscale).grid(row=0, column=2, sticky="w")
-        ttk.Checkbutton(options_frame, text="Zipper la sortie", variable=self.zip_output).grid(row=0, column=3, sticky="w")
+        # Bouton Convertir
+        self.convert_button = ttk.Button(buttons_frame, text="Convertir", 
+                                        command=self.convert_all, style="Accent.TButton")
+        self.convert_button.grid(row=0, column=0, padx=(0, 5))
         
-        # Options de métadonnées
-        ttk.Checkbutton(options_frame, text="📊 Métadonnées", variable=self.edit_metadata).grid(row=1, column=0, sticky="w")
-        ttk.Checkbutton(options_frame, text="🏷️ Auto-rename", variable=self.auto_rename).grid(row=1, column=1, sticky="w")
+        # Bouton Convertir la sélection
+        self.convert_selection_button = ttk.Button(buttons_frame, text="Convertir la sélection", 
+                                                 command=self.convert_selection)
+        self.convert_selection_button.grid(row=0, column=1, padx=5)
         
-        # Champs de métadonnées personnalisées
-        metadata_frame = ttk.Frame(options_frame)
-        metadata_frame.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(10, 0))
+        # Bouton Fusionner la sélection
+        self.merge_selection_button = ttk.Button(buttons_frame, text="Fusionner en 1 tome", 
+                                               command=self.merge_selection)
+        self.merge_selection_button.grid(row=0, column=2, padx=5)
         
-        ttk.Label(metadata_frame, text="Titre:").grid(row=0, column=0, sticky="w", padx=(0, 5))
-        ttk.Entry(metadata_frame, textvariable=self.custom_title, width=20).grid(row=0, column=1, sticky="ew", padx=(0, 10))
+        # Bouton Dry Run
+        self.dry_run_button = ttk.Button(buttons_frame, text="Dry Run", 
+                                        command=self.dry_run)
+        self.dry_run_button.grid(row=0, column=3, padx=5)
         
-        ttk.Label(metadata_frame, text="Auteur:").grid(row=0, column=2, sticky="w", padx=(0, 5))
-        ttk.Entry(metadata_frame, textvariable=self.custom_author, width=20).grid(row=0, column=3, sticky="ew", padx=(0, 10))
+        # Bouton Stop
+        self.stop_button = ttk.Button(buttons_frame, text="Stop", 
+                                     command=self.stop_conversion, state="disabled")
+        self.stop_button.grid(row=0, column=4, padx=5)
         
-        ttk.Label(metadata_frame, text="Sujet:").grid(row=1, column=0, sticky="w", padx=(0, 5))
-        ttk.Entry(metadata_frame, textvariable=self.custom_subject, width=20).grid(row=1, column=1, sticky="ew", padx=(0, 10))
+        # Bouton Clear All
+        self.clear_button = ttk.Button(buttons_frame, text="Clear All", 
+                                      command=self.clear_all)
+        self.clear_button.grid(row=0, column=5, padx=(5, 0))
         
-        ttk.Label(metadata_frame, text="Mots-clés:").grid(row=1, column=2, sticky="w", padx=(0, 5))
-        ttk.Entry(metadata_frame, textvariable=self.custom_keywords, width=20).grid(row=1, column=3, sticky="ew")
-        
-        # Configuration du grid pour les métadonnées
-        metadata_frame.columnconfigure(1, weight=1)
-        metadata_frame.columnconfigure(3, weight=1)
-        
+        # Label de statut de conversion
+        self.conversion_status_label = ttk.Label(conversion_frame, text="Prêt à convertir", 
+                                               font=("Arial", 10))
+        self.conversion_status_label.pack(pady=(5, 0))
+
     def _create_status_frame(self, parent):
         """Crée le frame pour le statut"""
         status_frame = ttk.Frame(parent)
-        status_frame.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(10, 0))
+        status_frame.pack(fill="x", padx=10, pady=5)
         
         # Barre de progression
         self.progress_bar = ttk.Progressbar(status_frame, variable=self.progress_var, maximum=100)
@@ -981,9 +1156,9 @@ Keyboard Shortcuts:
                     args = [script, '--output-dir', output_dir, file_path]
                     
                     # Ajouter les options si configurées
-                    if self.edit_metadata_var.get():
+                    if self.edit_metadata.get():
                         args.extend(['--edit-metadata'])
-                    if self.auto_rename_var.get():
+                    if self.auto_rename.get():
                         args.extend(['--auto-rename'])
                     
                     result = subprocess.run(args, capture_output=True, text=True, timeout=300)
@@ -1188,50 +1363,6 @@ Keyboard Shortcuts:
                         stats_text += f" | Formats: {', '.join(format_stats)}"
                         
             self.status_var.set(stats_text)
-
-    def _create_conversion_frame(self, parent):
-        """Crée le frame de conversion"""
-        conversion_frame = ttk.LabelFrame(parent, text="Conversion", padding="10")
-        conversion_frame.grid(row=4, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
-        
-        # Boutons de conversion
-        buttons_frame = ttk.Frame(conversion_frame)
-        buttons_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
-        
-        # Bouton Convertir
-        self.convert_button = ttk.Button(buttons_frame, text="Convertir", 
-                                        command=self.convert_all, style="Accent.TButton")
-        self.convert_button.grid(row=0, column=0, padx=(0, 5))
-        
-        # Bouton Convertir la sélection
-        self.convert_selection_button = ttk.Button(buttons_frame, text="Convertir la sélection", 
-                                                 command=self.convert_selection)
-        self.convert_selection_button.grid(row=0, column=1, padx=5)
-        
-        # Bouton Fusionner la sélection
-        self.merge_selection_button = ttk.Button(buttons_frame, text="Fusionner en 1 tome", 
-                                               command=self.merge_selection)
-        self.merge_selection_button.grid(row=0, column=2, padx=5)
-        
-        # Bouton Dry Run
-        self.dry_run_button = ttk.Button(buttons_frame, text="Dry Run", 
-                                        command=self.dry_run)
-        self.dry_run_button.grid(row=0, column=3, padx=5)
-        
-        # Bouton Stop
-        self.stop_button = ttk.Button(buttons_frame, text="Stop", 
-                                     command=self.stop_conversion, state="disabled")
-        self.stop_button.grid(row=0, column=4, padx=5)
-        
-        # Bouton Clear All
-        self.clear_button = ttk.Button(buttons_frame, text="Clear All", 
-                                      command=self.clear_all)
-        self.clear_button.grid(row=0, column=5, padx=(5, 0))
-        
-        # Label de statut de conversion
-        self.conversion_status_label = ttk.Label(conversion_frame, text="Prêt à convertir", 
-                                               font=("Arial", 10))
-        self.conversion_status_label.grid(row=1, column=0, columnspan=2, pady=(5, 0))
 
 
 def main():

@@ -1,12 +1,13 @@
 #!/bin/bash
 
 # epub2pdf.sh - Convert EPUB files to PDF
-# This script uses Calibre's ebook-convert tool to convert EPUB files to PDF
+# EPUB files are essentially ZIP archives containing HTML/CSS content
+# This script extracts EPUB files and converts the content to PDF
 
 set -euo pipefail
 
 # Version
-VERSION="1.0.0"
+VERSION="2.0.0"
 
 # Debug mode (set to true for verbose logging)
 DEBUG=true
@@ -18,7 +19,7 @@ debug_log() {
     fi
 }
 
-# Default options
+# Default values
 INPUT_DIR=""
 OUTPUT_DIR="./pdfs"
 RECURSIVE=false
@@ -26,13 +27,24 @@ FORCE=false
 GRAYSCALE=false
 RESIZE=""
 ZIP_OUTPUT=false
-CLEAN_TMP=true
+CLEAN_TMP=false
 OPEN_OUTPUT_DIR=false
 VERBOSE=false
 DRY_RUN=false
+SINGLE_FILE=""
+EDIT_METADATA=false
+AUTO_RENAME=false
+PARALLEL=false
+MAX_WORKERS=4
+
+# Metadata variables
+PDF_TITLE=""
+PDF_AUTHOR=""
+PDF_SUBJECT=""
+PDF_KEYWORDS=""
 
 # Required commands
-REQUIRED_CMDS=("ebook-convert")
+REQUIRED_CMDS=("unzip" "convert" "zip" "ebook-convert")
 
 # Colors for output
 RED='\033[0;31m'
@@ -45,66 +57,72 @@ debug_log "Script epub2pdf.sh démarré (v${VERSION})"
 debug_log "Répertoire de travail: $(pwd)"
 debug_log "Arguments reçus: $*"
 
-# Check first if help is requested
-for arg in "$@"; do
-  if [ "$arg" = "--help" ] || [ "$arg" = "-h" ]; then
-    cat <<EOF
-📘 epub2pdf v$VERSION
+# Help function
+show_help() {
+    cat << EOF
+📖 epub2pdf.sh v${VERSION} - Convert EPUB files to PDF
 
-Usage: epub2pdf [OPTIONS]
+Usage: $0 [OPTIONS] [EPUB_FILES...]
 
 Options:
-  --input-dir DIR        Input directory containing EPUB files (default: .)
-  --output-dir DIR       Output directory for PDFs (default: ./pdfs)
-  --recursive            Search in subdirectories
-  --force                Overwrite existing PDF files
-  --grayscale            Convert images to black and white
-  --resize SIZE          Resize images (ex: A4, 1240x1754, 800x600)
-  --zip-output           Create a .zip archive at the end
-  --clean-tmp            Remove temporary files
-  --open-output-dir      Open output directory at the end
-  --dry-run              Show files to convert without processing
-  --verbose              Verbose mode
-  --pdf-title TITLE      Set PDF title metadata
-  --pdf-author AUTHOR    Set PDF author metadata
-  --pdf-subject SUBJECT  Set PDF subject metadata
-  --pdf-keywords KEYWORDS Set PDF keywords metadata
-  --help                 Show this help
+    -i, --input-dir DIR        Input directory containing EPUB files
+    -o, --output-dir DIR       Output directory for PDF files (default: ./pdfs)
+    -r, --recursive            Search for EPUB files in subdirectories
+    -f, --force                Overwrite existing PDF files
+    -g, --grayscale            Convert images to grayscale (saves ink)
+    --resize SIZE              Resize images (ex: A4, 1240x1754, 800x600)
+    --zip-output               Create ZIP archive of all PDFs
+    --clean-tmp                Clean temporary files (default: true)
+    --open-output-dir          Open output directory when done
+    -v, --verbose              Verbose output
+    --dry-run                  Show what would be done without doing it
+    --single-file FILE         Process a single EPUB file
+    --edit-metadata            Edit PDF metadata after conversion
+    --auto-rename              Auto-rename files based on content
+    --parallel                 Enable parallel processing
+    --max-workers N            Maximum number of parallel workers (default: 4)
+    -h, --help                 Show this help message
+    --version                  Show version
+
+Resize options:
+    A4, A3, A5                Standard paper sizes
+    HD, FHD                    Standard resolutions
+    widthxheight               Custom size (ex: 800x600)
 
 Examples:
-  epub2pdf --input-dir ./mangas --output-dir ./pdfs --recursive --grayscale --zip-output
-  epub2pdf --input-dir ./mangas --resize A4 --verbose
+    $0 --input-dir ./books --output-dir ./pdfs --recursive
+    $0 --input-dir ./ebooks --grayscale --resize A4
+    $0 --input-dir ./library --verbose --dry-run
+    $0 --single-file "book.epub" --output-dir ./pdfs --edit-metadata
 
 EOF
-    exit 0
-  fi
-done
+}
 
 # Simple argument parsing
 debug_log "Début du parsing des arguments..."
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --input-dir)
+    -i|--input-dir)
       INPUT_DIR="$2"
       debug_log "Répertoire d'entrée défini: $INPUT_DIR"
       shift 2
       ;;
-    --output-dir)
+    -o|--output-dir)
       OUTPUT_DIR="$2"
       debug_log "Répertoire de sortie défini: $OUTPUT_DIR"
       shift 2
       ;;
-    --recursive)
+    -r|--recursive)
       RECURSIVE=true
       debug_log "Mode récursif activé"
       shift
       ;;
-    --force)
+    -f|--force)
       FORCE=true
       debug_log "Mode force activé"
       shift
       ;;
-    --grayscale)
+    -g|--grayscale)
       GRAYSCALE=true
       debug_log "Mode grayscale activé"
       shift
@@ -128,6 +146,31 @@ while [[ $# -gt 0 ]]; do
       OPEN_OUTPUT_DIR=true
       debug_log "Ouverture du répertoire de sortie activée"
       shift
+      ;;
+    --single-file)
+      SINGLE_FILE="$2"
+      debug_log "Fichier EPUB unique défini: $SINGLE_FILE"
+      shift 2
+      ;;
+    --edit-metadata)
+      EDIT_METADATA=true
+      debug_log "Édition des métadonnées PDF activée"
+      shift
+      ;;
+    --auto-rename)
+      AUTO_RENAME=true
+      debug_log "Auto-renommage des fichiers activé"
+      shift
+      ;;
+    --parallel)
+      PARALLEL=true
+      debug_log "Traitement parallèle activé"
+      shift
+      ;;
+    --max-workers)
+      MAX_WORKERS="$2"
+      debug_log "Nombre de workers parallèles défini: $MAX_WORKERS"
+      shift 2
       ;;
     --pdf-title)
       PDF_TITLE="$2"
@@ -154,15 +197,30 @@ while [[ $# -gt 0 ]]; do
       debug_log "Mode dry-run activé"
       shift
       ;;
-    --verbose)
+    -v|--verbose)
       VERBOSE=true
       debug_log "Mode verbose activé"
       shift
       ;;
+    --version)
+      echo "epub2pdf.sh v${VERSION}"
+      exit 0
+      ;;
+    -h|--help)
+      show_help
+      exit 0
+      ;;
     *)
-      echo "❌ Unknown option: $1"
-      echo "Use --help to see available options"
-      exit 1
+      # Check if it's a file path
+      if [[ -f "$1" && "$1" == *.epub ]]; then
+        EPUBS+=("$1")
+        debug_log "Fichier EPUB trouvé: $1"
+        shift
+      else
+        echo "❌ Unknown option: $1"
+        echo "Use --help to see available options"
+        exit 1
+      fi
       ;;
   esac
 done
@@ -180,6 +238,11 @@ debug_log "  CLEAN_TMP=$CLEAN_TMP"
 debug_log "  OPEN_OUTPUT_DIR=$OPEN_OUTPUT_DIR"
 debug_log "  VERBOSE=$VERBOSE"
 debug_log "  DRY_RUN=$DRY_RUN"
+debug_log "  SINGLE_FILE=$SINGLE_FILE"
+debug_log "  EDIT_METADATA=$EDIT_METADATA"
+debug_log "  AUTO_RENAME=$AUTO_RENAME"
+debug_log "  PARALLEL=$PARALLEL"
+debug_log "  MAX_WORKERS=$MAX_WORKERS"
 
 # Check dependencies
 debug_log "Vérification des dépendances..."
@@ -196,16 +259,43 @@ done
 debug_log "✅ Toutes les dépendances sont satisfaites"
 
 # Path validation
-if [ ! -d "$INPUT_DIR" ]; then
+if [[ -n "$INPUT_DIR" && ! -d "$INPUT_DIR" ]]; then
   echo "❌ Input directory does not exist: $INPUT_DIR"
   exit 1
 fi
 
 # Find EPUB files
-if $RECURSIVE; then
-  IFS=$'\n' EPUBS=($(find "$INPUT_DIR" -type f -name "*.epub"))
+if [[ -n "$SINGLE_FILE" ]]; then
+    # Single file mode
+    if [[ -f "$SINGLE_FILE" ]]; then
+        EPUBS=("$SINGLE_FILE")
+        debug_log "Fichier unique spécifié: $SINGLE_FILE"
+    else
+        error "Single file not found: $SINGLE_FILE"
+    fi
+elif [[ -n "$INPUT_DIR" ]]; then
+    # Directory mode
+    if [[ ! -d "$INPUT_DIR" ]]; then
+        error "Input directory does not exist: $INPUT_DIR"
+    fi
+    
+    if $RECURSIVE; then
+        IFS=$'\n' EPUBS=($(find "$INPUT_DIR" -type f -name "*.epub"))
+    else
+        IFS=$'\n' EPUBS=($(find "$INPUT_DIR" -maxdepth 1 -type f -name "*.epub"))
+    fi
 else
-  IFS=$'\n' EPUBS=($(find "$INPUT_DIR" -maxdepth 1 -type f -name "*.epub"))
+    # Check if files were passed as arguments
+    if [[ $# -gt 0 ]]; then
+        debug_log "Arguments passés: $*"
+        # Process each argument
+        for arg in "$@"; do
+            if [[ -f "$arg" && "$arg" == *.epub ]]; then
+                EPUBS+=("$arg")
+                debug_log "Fichier EPUB trouvé: $arg"
+            fi
+        done
+    fi
 fi
 
 TOTAL=${#EPUBS[@]}
@@ -255,19 +345,108 @@ get_resize_dimensions() {
       echo "1920x1080"
       ;;
     *)
-      # Check if it's a valid format (widthxheight)
-      if [[ "$size" =~ ^[0-9]+x[0-9]+$ ]]; then
-        echo "$size"
-      else
-        echo "❌ Invalid size format: $size"
-        echo "Supported formats: A4, A3, A5, HD, FHD, or widthxheight (ex: 800x600)"
-        exit 1
-      fi
+      echo "$size"
       ;;
   esac
 }
 
-# Apply PDF metadata
+# Function to edit PDF metadata
+edit_pdf_metadata() {
+    local pdf_file="$1"
+    local original_name="$2"
+    
+    if [[ "$EDIT_METADATA" == false ]]; then
+        return 0
+    fi
+    
+    debug_log "Édition des métadonnées pour: $pdf_file"
+    
+    # Check if exiftool is available
+    if ! command -v exiftool &> /dev/null; then
+        debug_log "⚠️ exiftool non disponible, métadonnées non modifiées"
+        warning "exiftool not found, metadata not modified"
+        return 0
+    fi
+    
+    # Extract title from filename
+    local title=$(basename "$original_name" .epub | sed 's/_/ /g' | sed 's/-/ /g')
+    
+    # Set metadata
+    if exiftool -overwrite_original \
+        -Title="$title" \
+        -Author="Converted with epub2pdf.sh" \
+        -Subject="E-Book" \
+        -Keywords="epub,ebook,PDF" \
+        -Creator="epub2pdf.sh v$VERSION" \
+        "$pdf_file" > /dev/null 2>&1; then
+        debug_log "✅ Métadonnées mises à jour pour: $pdf_file"
+        info "Metadata updated for: $pdf_file"
+    else
+        debug_log "❌ Échec de la mise à jour des métadonnées"
+        warning "Failed to update metadata for: $pdf_file"
+    fi
+}
+
+# Function to auto-rename PDF based on content
+auto_rename_pdf() {
+    local pdf_file="$1"
+    local original_name="$2"
+    
+    if [[ "$AUTO_RENAME" == false ]]; then
+        return 0
+    fi
+    
+    debug_log "Renommage automatique pour: $pdf_file"
+    
+    # Extract series and volume information from filename
+    local basename=$(basename "$original_name" .epub)
+    
+    # Common patterns for ebook naming
+    local new_name=""
+    
+    # Pattern: Series T.X
+    if [[ $basename =~ ^(.+)\s+T\.([0-9]+) ]]; then
+        local series="${BASH_REMATCH[1]}"
+        local volume="${BASH_REMATCH[2]}"
+        new_name="${series} T${volume}.pdf"
+    # Pattern: Series Vol.X
+    elif [[ $basename =~ ^(.+)\s+Vol\.([0-9]+) ]]; then
+        local series="${BASH_REMATCH[1]}"
+        local volume="${BASH_REMATCH[2]}"
+        new_name="${series} Vol${volume}.pdf"
+    else
+        # Default: clean up the name
+        new_name=$(echo "$basename" | sed 's/_/ /g' | sed 's/-/ /g').pdf
+    fi
+    
+    if [[ -n "$new_name" && "$new_name" != "$(basename "$pdf_file")" ]]; then
+        local new_path="$OUTPUT_DIR/$new_name"
+        if mv "$pdf_file" "$new_path" 2>/dev/null; then
+            debug_log "✅ Renommé: $pdf_file -> $new_path"
+            info "Renamed: $pdf_file -> $new_path"
+        else
+            debug_log "❌ Échec du renommage: $pdf_file"
+            warning "Failed to rename: $pdf_file"
+        fi
+    fi
+}
+
+# Info function
+info() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+# Warning function
+warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+# Success function
+success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+# Function to apply PDF metadata
 apply_pdf_metadata() {
   local pdf_file="$1"
   
@@ -325,112 +504,63 @@ for epub in "${EPUBS[@]}"; do
     continue
   fi
 
-  TMP_OE_DIR="$OUTPUT_DIR/${clean_name}_oe"
-  TMP_IMG_DIR="$OUTPUT_DIR/${clean_name}_img"
+  # Create temporary directory
+  TMP_DIR=$(mktemp -d)
   
-  # Clean existing temporary files
-  rm -rf "$TMP_OE_DIR" "$TMP_IMG_DIR"
-  mkdir -p "$TMP_IMG_DIR"
+  debug_log "Répertoire temporaire: $TMP_DIR"
 
-  # Convert EPUB to Open E-Book
-  if ! ebook-convert "$epub" "$TMP_OE_DIR" \
-    --disable-font-rescaling \
-    --margin-top 0 --margin-bottom 0 --margin-left 0 --margin-right 0 \
-    --enable-heuristics >/dev/null 2>&1; then
-    echo "❌ Error converting: $epub"
-    continue
-  fi
-
-  # Copy images from Open E-Book directory
-  if [ -d "$TMP_OE_DIR/OPS/images" ]; then
-    cp "$TMP_OE_DIR/OPS/images"/* "$TMP_IMG_DIR/" 2>/dev/null || true
-  fi
-
-  # Check if images were extracted
-  if ! ls "$TMP_IMG_DIR"/* >/dev/null 2>&1; then
-    echo "❌ No image content detected in: $epub"
-    [ "$CLEAN_TMP" = true ] && rm -rf "$TMP_OE_DIR" "$TMP_IMG_DIR"
-    progress_bar "$count" "$TOTAL"
-    continue
-  fi
-
-  # Convert to PDF via ImageMagick
-  IMG_FILES=($(find "$TMP_IMG_DIR" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.gif" -o -name "*.bmp" \) | sort))
+  # Convert EPUB directly to PDF using Calibre
+  debug_log "Conversion EPUB vers PDF avec Calibre..."
   
-  if [ ${#IMG_FILES[@]} -eq 0 ]; then
-    echo "❌ No valid images found in: $epub"
-    [ "$CLEAN_TMP" = true ] && rm -rf "$TMP_OE_DIR" "$TMP_IMG_DIR"
-    progress_bar "$count" "$TOTAL"
-    continue
+  # Prepare ebook-convert arguments
+  EBOOK_ARGS=()
+  
+  if [[ -n "$RESIZE" ]]; then
+    RESIZE_DIMS=$(get_resize_dimensions "$RESIZE")
+    EBOOK_ARGS+=("--output-profile" "tablet")
+    EBOOK_ARGS+=("--margin-top" "0" "--margin-bottom" "0" "--margin-left" "0" "--margin-right" "0")
   fi
   
-  # Limit number of images if too many
-  MAX_IMAGES=100
-  if [ ${#IMG_FILES[@]} -gt $MAX_IMAGES ]; then
-    [ "$VERBOSE" = true ] && echo "⚠️ Limiting to $MAX_IMAGES images (${#IMG_FILES[@]} found)"
-    LIMITED_IMGS=()
-    for ((i=0; i<MAX_IMAGES && i<${#IMG_FILES[@]}; i++)); do
-      LIMITED_IMGS+=("${IMG_FILES[$i]}")
-    done
-    IMG_FILES=("${LIMITED_IMGS[@]}")
+  if [[ "$GRAYSCALE" == true ]]; then
+    EBOOK_ARGS+=("--grayscale")
   fi
 
-  # Convert to PDF in small groups
-  GROUP_SIZE=20
-  TOTAL_GROUPS=$(( (${#IMG_FILES[@]} + GROUP_SIZE - 1) / GROUP_SIZE ))
-  
-  for ((i=0; i<${#IMG_FILES[@]}; i+=GROUP_SIZE)); do
-    GROUP_START=$i
-    GROUP_END=$((i + GROUP_SIZE - 1))
-    if [ $GROUP_END -ge ${#IMG_FILES[@]} ]; then
-      GROUP_END=$((${#IMG_FILES[@]} - 1))
-    fi
-    GROUP_IMAGES=()
-    for ((j=GROUP_START; j<=GROUP_END; j++)); do
-      GROUP_IMAGES+=("${IMG_FILES[$j]}")
-    done
-    GROUP_NUM=$((i/GROUP_SIZE + 1))
-    
-    # Create temporary file for this group
-    GROUP_FILE="$TMP_IMG_DIR/group_${GROUP_NUM}.txt"
-    printf '%s\n' "${GROUP_IMAGES[@]}" > "$GROUP_FILE"
-    
-    # Prepare conversion arguments
-    CONVERT_ARGS=()
-    if [ -n "$RESIZE" ]; then
-      RESIZE_DIMS=$(get_resize_dimensions "$RESIZE")
-      CONVERT_ARGS+=("-resize" "${RESIZE_DIMS}^" "-gravity" "center" "-extent" "$RESIZE_DIMS")
-    fi
-    $GRAYSCALE && CONVERT_ARGS+=("-colorspace" "Gray")
-    CONVERT_ARGS+=("-quality" "100")
-    
-    # Convert this group
-    if ! convert @"$GROUP_FILE" "${CONVERT_ARGS[@]}" "$TMP_IMG_DIR/group_${GROUP_NUM}.pdf" >/dev/null 2>&1; then
-      echo "❌ Error converting group $GROUP_NUM"
-      [ "$CLEAN_TMP" = true ] && rm -rf "$TMP_OE_DIR" "$TMP_IMG_DIR"
+  # Convert EPUB directly to PDF
+  debug_log "Conversion de: $epub vers $out"
+  if [[ ${#EBOOK_ARGS[@]} -eq 0 ]]; then
+    if ! ebook-convert "$epub" "$out" >/dev/null 2>&1; then
+      warning "Failed to convert EPUB file: $epub"
+      [ "$CLEAN_TMP" = true ] && rm -rf "$TMP_DIR"
       progress_bar "$count" "$TOTAL"
-      continue 2
+      continue
     fi
-  done
-  
-  # Combine all PDFs into one
-  FINAL_ARGS=()
-  $GRAYSCALE && FINAL_ARGS+=("-colorspace" "Gray")
-  FINAL_ARGS+=("-quality" "100")
-  
-  if ! convert "$TMP_IMG_DIR"/group_*.pdf "${FINAL_ARGS[@]}" "$out" >/dev/null 2>&1; then
-    echo "❌ Error combining PDFs"
-    [ "$CLEAN_TMP" = true ] && rm -rf "$TMP_OE_DIR" "$TMP_IMG_DIR"
-    progress_bar "$count" "$TOTAL"
-    continue
+  else
+    if ! ebook-convert "$epub" "$out" "${EBOOK_ARGS[@]}" >/dev/null 2>&1; then
+      warning "Failed to convert EPUB file: $epub"
+      [ "$CLEAN_TMP" = true ] && rm -rf "$TMP_DIR"
+      progress_bar "$count" "$TOTAL"
+      continue
+    fi
   fi
 
-  # Apply metadata if specified
-  if [[ -n "$PDF_TITLE" || -n "$PDF_AUTHOR" || -n "$PDF_SUBJECT" || -n "$PDF_KEYWORDS" ]]; then
-    apply_pdf_metadata "$out"
+  if [[ -f "$out" ]]; then
+    success "Created: $out"
+    
+    # Edit metadata if requested
+    edit_pdf_metadata "$out" "$epub"
+    
+    # Auto-rename if requested
+    auto_rename_pdf "$out" "$epub"
+  else
+    warning "Failed to create PDF: $out"
   fi
 
-  [ "$CLEAN_TMP" = true ] && rm -rf "$TMP_OE_DIR" "$TMP_IMG_DIR"
+  # Clean up temporary files
+  if [[ "$CLEAN_TMP" == true ]]; then
+    debug_log "Nettoyage des fichiers temporaires..."
+    rm -rf "$TMP_DIR"
+  fi
+
   progress_bar "$count" "$TOTAL"
 done
 
