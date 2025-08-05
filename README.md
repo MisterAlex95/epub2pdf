@@ -1,7 +1,8 @@
-# 📘 epub2pdf - Unified PDF Converter
-
 ## DISCLAIMER
 Ce projet est généré par IA. 
+
+
+# 📘 epub2pdf - Unified PDF Converter
 
 Un outil complet pour convertir des fichiers EPUB, CBR et CBZ en PDF avec une interface graphique moderne et une architecture modulaire.
 
