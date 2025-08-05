@@ -37,8 +37,14 @@ AUTO_RENAME=false
 PARALLEL=false
 MAX_WORKERS=4
 
+# Metadata variables
+PDF_TITLE=""
+PDF_AUTHOR=""
+PDF_SUBJECT=""
+PDF_KEYWORDS=""
+
 # Required commands
-REQUIRED_CMDS=("unrar" "convert" "zip")
+REQUIRED_CMDS=("unar" "convert" "zip")
 
 # Colors for output
 RED='\033[0;31m'
@@ -46,6 +52,23 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Helper functions
+success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
+info() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
 
 debug_log "Script cbr2pdf.sh démarré (v${VERSION})"
 debug_log "Répertoire de travail: $(pwd)"
@@ -205,9 +228,16 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     *)
-      echo "❌ Unknown option: $1"
-      echo "Use --help to see available options"
-      exit 1
+      # Check if it's a file path
+      if [[ -f "$1" && "$1" == *.cbr ]]; then
+        CBRS+=("$1")
+        debug_log "Fichier CBR trouvé: $1"
+        shift
+      else
+        echo "❌ Unknown option: $1"
+        echo "Use --help to see available options"
+        exit 1
+      fi
       ;;
   esac
 done
@@ -246,16 +276,38 @@ done
 debug_log "✅ Toutes les dépendances sont satisfaites"
 
 # Path validation
-if [ ! -d "$INPUT_DIR" ]; then
+if [[ -n "$INPUT_DIR" && ! -d "$INPUT_DIR" ]]; then
   echo "❌ Input directory does not exist: $INPUT_DIR"
   exit 1
 fi
 
 # Find CBR files
-if $RECURSIVE; then
-  IFS=$'\n' CBRS=($(find "$INPUT_DIR" -type f -name "*.cbr"))
+if [[ -n "$SINGLE_FILE" ]]; then
+    # Single file mode
+    if [[ -f "$SINGLE_FILE" ]]; then
+        CBRS=("$SINGLE_FILE")
+        debug_log "Fichier unique spécifié: $SINGLE_FILE"
+    else
+        error "Single file not found: $SINGLE_FILE"
+    fi
+elif [[ -n "$INPUT_DIR" ]]; then
+    # Directory mode
+    if [[ ! -d "$INPUT_DIR" ]]; then
+        error "Input directory does not exist: $INPUT_DIR"
+    fi
+    
+    if $RECURSIVE; then
+        IFS=$'\n' CBRS=($(find "$INPUT_DIR" -type f -name "*.cbr"))
+    else
+        IFS=$'\n' CBRS=($(find "$INPUT_DIR" -maxdepth 1 -type f -name "*.cbr"))
+    fi
 else
-  IFS=$'\n' CBRS=($(find "$INPUT_DIR" -maxdepth 1 -type f -name "*.cbr"))
+    # Check if files were passed as arguments
+    if [[ ${#CBRS[@]} -eq 0 ]]; then
+        debug_log "Aucun fichier CBR trouvé dans les arguments"
+        echo "⚠️ No .cbr files found"
+        exit 0
+    fi
 fi
 
 TOTAL=${#CBRS[@]}
@@ -470,7 +522,7 @@ for cbr in "${CBRS[@]}"; do
   mkdir -p "$TMP_EXTRACT_DIR" "$TMP_IMG_DIR"
 
   # Extract CBR file
-  if ! unrar -o "$TMP_EXTRACT_DIR" "$cbr" >/dev/null 2>&1; then
+  if ! unar -o "$TMP_EXTRACT_DIR" "$cbr" >/dev/null 2>&1; then
     echo "❌ Error extracting: $cbr"
     continue
   fi
