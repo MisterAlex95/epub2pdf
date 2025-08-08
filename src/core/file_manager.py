@@ -91,7 +91,7 @@ class FileManager:
             self.logger.info(f"Dossier de logs: {logs_dir}")
             
         except Exception as e:
-            print(f"Erreur configuration logging: {e}")
+            self.logger.error(f"Erreur configuration logging: {e}")
     
     def set_mal_client_id(self, client_id: str):
         """Configure l'ID client MyAnimeList"""

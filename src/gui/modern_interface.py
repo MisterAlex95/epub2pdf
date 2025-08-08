@@ -6,7 +6,7 @@ import sys
 import os
 import logging
 from pathlib import Path
-from typing import List, Dict, Optional, Callable
+from typing import List, Dict, Optional
 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -16,11 +16,10 @@ from PySide6.QtWidgets import (
     QFrame, QScrollArea, QGridLayout, QFormLayout, QInputDialog,
     QHeaderView, QDialog, QListWidget, QListWidgetItem
 )
-from PySide6.QtCore import Qt, QThread, Signal, QTimer, QSize
-from PySide6.QtGui import QFont, QIcon, QPalette, QColor, QPixmap
+from PySide6.QtCore import Qt, QThread, Signal, QSize
+from PySide6.QtGui import QFont, QPalette, QColor
 
 from src.core.file_manager import FileManager
-from src.utils.performance_optimizer import performance_optimizer
 from src.utils.config_manager import ConfigManager
 
 
@@ -48,7 +47,6 @@ class CustomTreeWidget(QTreeWidget):
                     file_info = item.data(0, Qt.UserRole)
                     if file_info:
                         file_info['selected'] = (new_state == Qt.Checked)
-                        print(f"Fichier sélectionné: {file_info['name']} - {file_info['selected']}")
                     
                     # Émettre le signal de changement
                     self.itemChanged.emit(item, 0)
@@ -557,10 +555,6 @@ class MergeOrderDialog(QDialog):
         if current_order and current_order != self.ordered_files:
             self.ordered_files = current_order
         
-        # Debug: afficher l'ordre final
-        order_names = [f['name'] for f in self.ordered_files]
-        print(f"DEBUG - Ordre final des fichiers: {order_names}")
-        
         return self.ordered_files
 
 
@@ -589,9 +583,6 @@ class ModernInterface(QMainWindow):
         
         # Charger la configuration sauvegardée
         self.load_saved_config()
-        
-        # Démarrer le monitoring de performance
-        performance_optimizer.start_performance_monitoring("interface_startup")
     
     def setup_dark_theme(self):
         """Configure le thème sombre moderne"""
@@ -931,7 +922,7 @@ class ModernInterface(QMainWindow):
         # Nombre de workers
         self.workers_spin = QSpinBox()
         self.workers_spin.setRange(1, 16)
-        self.workers_spin.setValue(performance_optimizer.optimize_worker_count("conversion"))
+        self.workers_spin.setValue(5)  # Valeur par défaut
         performance_layout.addRow("Workers:", self.workers_spin)
         
         # Optimisations
@@ -1048,9 +1039,6 @@ class ModernInterface(QMainWindow):
                         self.files[i]['selected'] = is_checked
                         break
                 
-                # Debug: afficher le changement de sélection
-                print(f"Sélection changée: {file_info['name']} - {is_checked}")
-                
                 # Mettre à jour le statut
                 self.update_conversion_buttons_state()
     
@@ -1059,19 +1047,11 @@ class ModernInterface(QMainWindow):
         selected_files = [f for f in self.files if f.get('selected', False)]
         has_files = len(self.files) > 0
         
-        # Debug: afficher le nombre de fichiers sélectionnés
-        print(f"Fichiers sélectionnés: {len(selected_files)} / {len(self.files)}")
-        
         # Activer le bouton de sélection seulement s'il y a des fichiers sélectionnés
         self.convert_selected_btn.setEnabled(len(selected_files) > 0)
         self.convert_all_btn.setEnabled(has_files)
         self.merge_selected_btn.setEnabled(len(selected_files) > 1)  # Au moins 2 fichiers pour fusionner
         
-        # Debug: afficher l'état des boutons
-        print(f"Bouton sélection activé: {len(selected_files) > 0}")
-        print(f"Bouton tout activé: {has_files}")
-        print(f"Bouton fusion activé: {len(selected_files) > 1}")
-    
     def merge_selected_files(self):
         """Fusionne les fichiers sélectionnés"""
         selected_files = [f for f in self.files if f.get('selected', False)]
@@ -1292,7 +1272,7 @@ class ModernInterface(QMainWindow):
             self.files.sort(key=lambda x: x.get('modified', 0), reverse=True)
         
         # Appliquer le filtre de recherche
-        search_term = self.search_edit.text().strip().lower()
+        search_term = self.search_edit.text().lower()
         filtered_files = self.files
         
         if search_term:
@@ -1710,10 +1690,8 @@ class ModernInterface(QMainWindow):
             if hasattr(self, 'search_edit'):
                 self.search_edit.setText(last_search)
             
-            print("✅ Configuration chargée avec succès")
-            
         except Exception as e:
-            print(f"⚠️ Erreur lors du chargement de la configuration: {e}")
+            self.add_log_message(f"⚠️ Erreur lors du chargement de la configuration: {e}", "ERROR")
     
     def save_current_config(self):
         """Sauvegarde la configuration actuelle"""
@@ -1769,31 +1747,9 @@ class ModernInterface(QMainWindow):
                 search_term = self.search_edit.text()
                 self.config_manager.set('last_search_term', search_term)
             
-            print("✅ Configuration sauvegardée avec succès")
-            
         except Exception as e:
-            print(f"⚠️ Erreur lors de la sauvegarde de la configuration: {e}")
+            self.add_log_message(f"⚠️ Erreur lors de la sauvegarde de la configuration: {e}", "ERROR")
     
     def on_config_changed(self):
         """Appelé quand la configuration change"""
         self.save_current_config()
-
-
-def main():
-    """Point d'entrée de l'interface moderne"""
-    app = QApplication(sys.argv)
-    
-    # Configuration de l'application
-    app.setApplicationName("epub2pdf")
-    app.setApplicationVersion("2.0.0")
-    
-    # Créer et afficher la fenêtre principale
-    window = ModernInterface()
-    window.show()
-    
-    # Démarrer l'application
-    sys.exit(app.exec())
-
-
-if __name__ == "__main__":
-    main()

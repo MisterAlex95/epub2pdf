@@ -22,16 +22,23 @@ except ImportError:
 def main():
     """Fonction principale de l'application"""
     try:
-        # Importer et utiliser la nouvelle interface moderne
-        from src.gui.modern_interface import main as modern_main
+        from src.gui.modern_interface import ModernInterface
         
-        # Lancer l'interface moderne
-        modern_main()
+        # Créer l'application
+        app = QApplication(sys.argv)
+        app.setApplicationName("epub2pdf")
+        app.setApplicationVersion("2.0.0")
+        
+        # Créer et afficher la fenêtre principale
+        window = ModernInterface()
+        window.show()
+        
+        # Démarrer l'application
+        sys.exit(app.exec())
         
     except Exception as e:
         print(f"Erreur lors du démarrage de l'application: {e}")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main() 
