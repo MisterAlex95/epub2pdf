@@ -1,230 +1,207 @@
-## DISCLAIMER
-Ce projet est généré par IA. 
+# EPUB2PDF - Convertisseur de Manga/Comics
 
+Application moderne de conversion de fichiers EPUB, CBR et CBZ vers PDF avec interface graphique PySide6.
 
-# 📘 epub2pdf - Unified PDF Converter
+## 🚀 Fonctionnalités
 
-Un outil complet pour convertir des fichiers EPUB, CBR et CBZ en PDF avec une interface graphique moderne et une architecture modulaire.
+- **Conversion multi-format** : EPUB, CBR, CBZ → PDF
+- **Interface moderne** : Interface graphique intuitive avec PySide6
+- **Fusion de fichiers** : Combinez plusieurs chapitres en un seul PDF
+- **Traitement par lots** : Conversion de plusieurs fichiers simultanément
+- **Métadonnées** : Récupération automatique des informations manga
+- **Optimisation** : Redimensionnement, grayscale, compression
+- **Sauvegarde de configuration** : Mémorisation des préférences utilisateur
 
-## 🏗️ Structure du Projet
+## 📋 Prérequis
+
+### Dépendances système
+
+**macOS :**
+```bash
+# Installation via Homebrew
+brew install unar imagemagick
+```
+
+**Ubuntu/Debian :**
+```bash
+# Installation via apt
+sudo apt-get update
+sudo apt-get install unar imagemagick
+```
+
+**Windows :**
+- Téléchargez et installez [UnRAR](https://www.win-rar.com/download.html)
+- Téléchargez et installez [ImageMagick](https://imagemagick.org/script/download.php#windows)
+
+### Python
+
+- Python 3.8 ou supérieur
+- pip (gestionnaire de paquets Python)
+
+## 🛠️ Installation
+
+### Installation complète (recommandée)
+
+```bash
+# Cloner le repository
+git clone https://github.com/votre-username/epub2pdf.git
+cd epub2pdf
+
+# Créer un environnement virtuel
+python -m venv venv
+
+# Activer l'environnement virtuel
+# macOS/Linux :
+source venv/bin/activate
+# Windows :
+venv\Scripts\activate
+
+# Installer toutes les dépendances
+pip install -r requirements.txt
+```
+
+### Installation minimale
+
+```bash
+# Installation des dépendances minimales uniquement
+pip install -r requirements-minimal.txt
+```
+
+### Installation pour le développement
+
+```bash
+# Installation avec outils de développement
+pip install -r requirements-dev.txt
+```
+
+## 🎯 Utilisation
+
+### Lancement de l'application
+
+```bash
+python main.py
+```
+
+### Interface utilisateur
+
+1. **Onglet Conversion** :
+   - Sélectionnez un dossier d'entrée
+   - Choisissez un dossier de sortie
+   - Sélectionnez les fichiers à convertir
+   - Cliquez sur "Convertir la sélection" ou "Convertir tout"
+
+2. **Fusion de fichiers** :
+   - Sélectionnez plusieurs fichiers
+   - Cliquez sur "Fusionner la sélection"
+   - Entrez le nom du fichier fusionné
+   - Le PDF fusionné sera créé dans le dossier de sortie
+
+3. **Options** :
+   - Format de sortie (PDF)
+   - Redimensionnement (A4, A3, etc.)
+   - Conversion en niveaux de gris
+   - Optimisation et compression
+   - Ajout de métadonnées
+
+## 📁 Structure du projet
 
 ```
 epub2pdf/
-├── 📁 src/                    # Code source Python
-│   ├── 📁 core/              # Modules de base
-│   │   ├── config.py         # Configuration centralisée
-│   │   ├── settings_manager.py # Gestion des paramètres
-│   │   └── conversion_manager.py # Gestion des conversions
-│   ├── 📁 gui/               # Interface utilisateur
-│   │   ├── ui_components.py  # Composants UI réutilisables
-│   │   └── tab_converter.py  # Gestion des onglets
-│   └── unified_gui.py        # Interface principale
-├── 📁 scripts/               # Scripts de conversion
-│   ├── epub2pdf.sh          # Conversion EPUB → PDF
-│   ├── cbr2pdf.sh           # Conversion CBR → PDF
-│   ├── cbz2pdf.sh           # Conversion CBZ → PDF
-│   ├── install.sh           # Installation des dépendances
-│   └── unified_gui.sh       # Lanceur GUI
-├── 📁 docs/                  # Documentation
-│   ├── README.md            # Ce fichier
-│   └── STRUCTURE.md         # Architecture modulaire
-├── 📁 tests/                 # Tests (à venir)
-├── main.py                   # Point d'entrée principal
-├── run.py                    # Script de lancement rapide
-└── clean.sh                  # Script de nettoyage
+├── main.py                 # Point d'entrée principal
+├── requirements.txt        # Dépendances complètes
+├── requirements-minimal.txt # Dépendances minimales
+├── requirements-dev.txt    # Dépendances de développement
+├── src/
+│   ├── core/              # Logique métier
+│   │   ├── converter/     # Convertisseurs
+│   │   ├── file_manager.py
+│   │   └── metadata_manager.py
+│   ├── gui/               # Interface utilisateur
+│   │   ├── modern_interface.py
+│   │   └── ...
+│   └── utils/             # Utilitaires
+├── tests/                 # Tests unitaires
+├── temp/                  # Fichiers temporaires
+└── logs/                  # Fichiers de logs
 ```
 
-## 🚀 Installation
+## 🔧 Configuration
 
-### Prérequis
-- macOS avec Homebrew
-- Python 3.7+
+### Fichiers de configuration
 
-### Installation automatique
+- `app_config.json` : Configuration de l'application
+- `path_config.json` : Chemins par défaut
+
+### Variables d'environnement
+
+- `EPUB2PDF_LOG_LEVEL` : Niveau de log (DEBUG, INFO, WARNING, ERROR)
+- `EPUB2PDF_TEMP_DIR` : Dossier temporaire personnalisé
+
+## 🧪 Tests
+
 ```bash
-# Cloner le projet
-git clone <repository-url>
-cd epub2pdf
+# Lancer tous les tests
+pytest
 
-# Installer les dépendances
-./scripts/install.sh
+# Tests avec couverture
+pytest --cov=src
 
-# Lancer l'interface
-python3 main.py
-# ou
-python3 run.py
+# Tests spécifiques
+pytest tests/test_core.py
+pytest tests/test_gui.py
 ```
 
-### Installation manuelle
-```bash
-# Installer les dépendances
-brew install --cask calibre
-brew install imagemagick ghostscript unar python-tk
+## 📊 Performance
 
-# Lancer l'interface
-python3 main.py
-```
+### Optimisations incluses
 
-## 🎯 Fonctionnalités
+- **Traitement parallèle** : Conversion simultanée de plusieurs fichiers
+- **Cache intelligent** : Mise en cache des informations de fichiers
+- **Optimisation mémoire** : Gestion efficace de la mémoire
+- **Compression** : Réduction de la taille des fichiers PDF
 
-### ✅ Conversion Multi-Formats
-- **EPUB → PDF** : E-books et documents
-- **CBR → PDF** : Comics (format RAR)
-- **CBZ → PDF** : Comics (format ZIP)
+### Recommandations
 
-### 🖥️ Interface Moderne
-- **Interface unifiée** : Une seule interface pour tous les formats
-- **Design responsive** : Adapté à différentes tailles d'écran
-- **Thème moderne** : Couleurs harmonieuses et typographie claire
-- **Compteurs en temps réel** : Nombre de fichiers par format
+- Utilisez un SSD pour de meilleures performances
+- Augmentez le nombre de workers selon votre CPU
+- Désactivez l'antivirus temporairement pendant la conversion
 
-### ⚙️ Options Avancées
-- **Recherche récursive** : Scan des sous-répertoires
-- **Conversion parallèle** : Traitement simultané de plusieurs fichiers
-- **Redimensionnement** : A4, A3, A5, HD, FHD, personnalisé
-- **Conversion grayscale** : Images en noir et blanc
-- **Archivage ZIP** : Création d'archives
-- **Mode verbose** : Logs détaillés
+## 🐛 Dépannage
 
-### 🎨 Expérience Utilisateur
-- **Raccourcis clavier** : Ctrl+O, Ctrl+F, Ctrl+R, etc.
-- **Persistance des paramètres** : Sauvegarde des préférences
-- **Feedback visuel** : Icônes de statut dynamiques
-- **Gestion d'erreurs** : Messages d'aide contextuels
+### Problèmes courants
 
-## 🚀 Utilisation
+1. **Erreur "unar not found"** :
+   - Installez unar : `brew install unar` (macOS) ou `apt-get install unar` (Ubuntu)
 
-### Interface Graphique
-```bash
-# Lancement principal
-python3 main.py
+2. **Erreur "ImageMagick not found"** :
+   - Installez ImageMagick : `brew install imagemagick` (macOS) ou `apt-get install imagemagick` (Ubuntu)
 
-# Lancement rapide
-python3 run.py
+3. **Erreur "PySide6 not found"** :
+   - Installez PySide6 : `pip install PySide6`
 
-# Via script shell
-./scripts/unified_gui.sh
-```
+4. **Erreur de permission** :
+   - Vérifiez les permissions du dossier de sortie
+   - Exécutez en tant qu'administrateur si nécessaire
 
-### Ligne de Commande
-```bash
-# Conversion EPUB
-./scripts/epub2pdf.sh --input-dir ./mangas --output-dir ./pdfs --recursive
+### Logs
 
-# Conversion CBR
-./scripts/cbr2pdf.sh --input-dir ./comics --output-dir ./pdfs --grayscale
+Les logs sont sauvegardés dans `src/logs/` avec la date et l'heure.
 
-# Conversion CBZ
-./scripts/cbz2pdf.sh --input-dir ./books --output-dir ./pdfs --resize A4
-```
+## 🤝 Contribution
 
-## 🏗️ Architecture Modulaire
+1. Fork le projet
+2. Créez une branche feature (`git checkout -b feature/AmazingFeature`)
+3. Commit vos changements (`git commit -m 'Add some AmazingFeature'`)
+4. Push vers la branche (`git push origin feature/AmazingFeature`)
+5. Ouvrez une Pull Request
 
-### 📁 Structure des Modules
+## 📄 Licence
 
-#### **Core** (`src/core/`)
-- **`config.py`** : Configuration centralisée (couleurs, formats, paramètres)
-- **`settings_manager.py`** : Persistance des paramètres utilisateur
-- **`conversion_manager.py`** : Gestion des conversions (séquentielle/parallèle)
+Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
 
-#### **GUI** (`src/gui/`)
-- **`ui_components.py`** : Composants UI réutilisables
-- **`tab_converter.py`** : Gestion des onglets de conversion
+## 🙏 Remerciements
 
-#### **Interface** (`src/`)
-- **`unified_gui.py`** : Interface principale orchestrant tous les modules
-
-### 🔄 Flux de Données
-```
-config.py → ui_components.py → unified_gui.py
-     ↓              ↓              ↓
-settings_manager.py ← conversion_manager.py
-     ↓              ↓
-tab_converter.py ← unified_gui.py
-```
-
-## 🎯 Avantages de l'Architecture
-
-### ✅ **Modularité**
-- Chaque module a une responsabilité unique
-- Code facilement testable et maintenable
-- Réutilisation des composants
-
-### ✅ **Maintenabilité**
-- Code organisé et documenté
-- Séparation claire des préoccupations
-- Facile d'ajouter de nouvelles fonctionnalités
-
-### ✅ **Extensibilité**
-- Ajout facile de nouveaux formats
-- Configuration centralisée
-- Composants réutilisables
-
-### ✅ **Lisibilité**
-- Code bien structuré
-- Documentation intégrée
-- Noms de variables et fonctions explicites
-
-## 🔧 Ajout de Nouveaux Formats
-
-Pour ajouter un nouveau format (ex: PDF vers TXT) :
-
-1. **Ajouter dans `src/core/config.py`** :
-```python
-FILE_FORMATS = {
-    # ... formats existants ...
-    'pdf': {
-        'name': 'PDF',
-        'icon': '📄',
-        'script': 'pdf2txt.sh',
-        'description': 'PDF to text conversion'
-    }
-}
-```
-
-2. **Créer le script de conversion** : `scripts/pdf2txt.sh`
-
-3. **L'interface se met à jour automatiquement** !
-
-## 📊 Comparaison Avant/Après
-
-| Aspect | Avant | Après |
-|--------|-------|-------|
-| **Fichiers** | 1 fichier monolithique | 6 modules spécialisés |
-| **Lignes de code** | 858 lignes | 440 lignes (interface principale) |
-| **Responsabilités** | Tout mélangé | Séparées par module |
-| **Maintenance** | Difficile | Facile |
-| **Tests** | Impossible | Facile |
-| **Extensibilité** | Limitée | Illimitée |
-
-## 🛠️ Développement
-
-### Structure de Développement
-```bash
-# Lancer l'interface en mode développement
-python3 main.py
-
-# Nettoyer le projet
-./clean.sh
-
-# Tester les modules
-python3 -c "import src.core.config; print('✅ Core modules OK')"
-```
-
-### Ajout de Fonctionnalités
-1. **Configuration** : Modifier `src/core/config.py`
-2. **Interface** : Ajouter dans `src/gui/ui_components.py`
-3. **Logique** : Implémenter dans `src/core/conversion_manager.py`
-4. **Tests** : Créer dans `tests/`
-
-## 📚 Documentation
-
-- **`docs/README.md`** : Documentation complète
-- **`docs/STRUCTURE.md`** : Architecture modulaire détaillée
-- **Commentaires** : Code entièrement documenté
-
-## 🎉 Résultat
-
-Le projet est maintenant **parfaitement organisé**, **facilement maintenable** et **extensible** avec une architecture modulaire professionnelle ! 
-
-**Tous les tests passent avec succès** ✅ et l'interface fonctionne parfaitement avec la nouvelle structure organisée. 
+- [PySide6](https://doc.qt.io/qtforpython/) - Interface utilisateur
+- [Pillow](https://python-pillow.org/) - Traitement d'images
+- [PyPDF2](https://pypdf2.readthedocs.io/) - Manipulation PDF
+- [UnRAR](https://www.rarlab.com/) - Extraction d'archives RAR

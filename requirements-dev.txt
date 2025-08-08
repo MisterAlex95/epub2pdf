@@ -1,0 +1,48 @@
+# =============================================================================
+# EPUB2PDF - Dépendances de développement
+# =============================================================================
+# 
+# Ce fichier contient toutes les dépendances nécessaires pour le développement,
+# les tests et la maintenance du projet.
+#
+# Installation : pip install -r requirements-dev.txt
+# =============================================================================
+
+# Dépendances principales (inclues)
+-r requirements.txt
+
+# =============================================================================
+# Outils de développement
+# =============================================================================
+
+# Tests et couverture de code
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+pytest-qt>=4.2.0
+pytest-xdist>=3.0.0  # Tests parallèles
+
+# Qualité de code et formatage
+black>=22.0.0
+flake8>=5.0.0
+isort>=5.10.0  # Tri des imports
+mypy>=1.0.0    # Vérification de types
+
+# Documentation
+sphinx>=5.0.0
+sphinx-rtd-theme>=1.0.0
+
+# Outils de développement
+pre-commit>=2.20.0
+tox>=4.0.0
+
+# =============================================================================
+# Outils de profilage et debugging
+# =============================================================================
+
+# Profilage
+memory-profiler>=0.60.0
+line-profiler>=3.5.0
+
+# Debugging
+ipdb>=0.13.0
